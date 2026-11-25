@@ -1,1 +1,3 @@
-print("Hello world, from server!")
+--!strict
+-- Server entry point
+
