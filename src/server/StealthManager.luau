@@ -163,6 +163,11 @@ local function isPointInVisionCone(
 	targetPos: Vector3,
 	now: number
 ): boolean
+	-- Players scouting from upper Mezzanine balconies are out of ground-level eye cone
+	if math.abs(targetPos.Y - (npcPos.Y + 3.0)) > 6.5 then
+		return false
+	end
+
 	local dx = targetPos.X - npcPos.X
 	local dz = targetPos.Z - npcPos.Z
 	local distSq = dx * dx + dz * dz
