@@ -390,20 +390,22 @@ end
 local function buildPlanterBed(coverParent: Instance, decorParent: Instance, pos: Vector3, accentColor: Color3, width: number?, depth: number?)
 	local w = width or 4.6
 	local d = depth or 4.6
-	makePart(coverParent, "PlanterBox", Vector3.new(w, 2.2, d), CFrame.new(pos.X, 1.1, pos.Z), Color3.fromRGB(232, 234, 238), Enum.Material.Marble, true)
-	makePart(decorParent, "PlanterRim", Vector3.new(w + 0.25, 0.28, d + 0.25), CFrame.new(pos.X, 2.24, pos.Z), Color3.fromRGB(186, 152, 74), Enum.Material.Metal, false)
-	makePart(decorParent, "PlanterLightStrip", Vector3.new(w + 0.1, 0.14, d + 0.1), CFrame.new(pos.X, 2.02, pos.Z), accentColor, Enum.Material.Neon, false)
-	makePart(decorParent, "PlanterSoil", Vector3.new(w - 0.5, 0.25, d - 0.5), CFrame.new(pos.X, 2.26, pos.Z), Color3.fromRGB(68, 48, 34), Enum.Material.Grass, false)
-	makePart(decorParent, "PalmTrunk", Vector3.new(0.75, 5.2, 0.75), CFrame.new(pos.X, 4.9, pos.Z), Color3.fromRGB(116, 82, 52), Enum.Material.Wood, false)
+	local floorY = if pos.Y > 0.5 then pos.Y else 0.4
+	makePart(coverParent, "PlanterBox", Vector3.new(w, 2.2, d), CFrame.new(pos.X, floorY + 0.7, pos.Z), Color3.fromRGB(232, 234, 238), Enum.Material.Marble, true)
+	makePart(decorParent, "PlanterRim", Vector3.new(w + 0.25, 0.28, d + 0.25), CFrame.new(pos.X, floorY + 1.84, pos.Z), Color3.fromRGB(186, 152, 74), Enum.Material.Metal, false)
+	makePart(decorParent, "PlanterLightStrip", Vector3.new(w + 0.1, 0.14, d + 0.1), CFrame.new(pos.X, floorY + 1.62, pos.Z), accentColor, Enum.Material.Neon, false)
+	makePart(decorParent, "PlanterSoil", Vector3.new(w - 0.5, 0.25, d - 0.5), CFrame.new(pos.X, floorY + 1.86, pos.Z), Color3.fromRGB(68, 48, 34), Enum.Material.Grass, false)
+	makePart(decorParent, "PalmTrunk", Vector3.new(0.75, 4.8, 0.75), CFrame.new(pos.X, floorY + 4.3, pos.Z), Color3.fromRGB(116, 82, 52), Enum.Material.Wood, false)
 	for i = 1, 6 do
 		local yaw = math.rad((i - 1) * 60)
-		local cf = CFrame.new(pos.X, 7.45, pos.Z) * CFrame.Angles(0, yaw, 0) * CFrame.new(0, 0, -1.9) * CFrame.Angles(math.rad(-20), 0, 0)
-		makePart(decorParent, "Frond_" .. i, Vector3.new(1.15, 0.16, 3.8), cf, Color3.fromRGB(58, 148, 72), Enum.Material.Grass, false)
+		local cf = CFrame.new(pos.X, floorY + 6.65, pos.Z) * CFrame.Angles(0, yaw, 0) * CFrame.new(0, 0, -1.8) * CFrame.Angles(math.rad(-20), 0, 0)
+		makePart(decorParent, "Frond_" .. i, Vector3.new(1.15, 0.16, 3.6), cf, Color3.fromRGB(58, 148, 72), Enum.Material.Grass, false)
 	end
 end
 
 local function buildLeatherSeatingCluster(parent: Instance, pos: Vector3, yawDeg: number, cushionColor: Color3, trimColor: Color3)
-	local origin = CFrame.new(pos.X, 0.4, pos.Z) * CFrame.Angles(0, math.rad(yawDeg), 0)
+	local floorY = if pos.Y > 0.5 then pos.Y else 0.4
+	local origin = CFrame.new(pos.X, floorY, pos.Z) * CFrame.Angles(0, math.rad(yawDeg), 0)
 	makePart(parent, "BenchFrame", Vector3.new(10.4, 0.35, 2.8), origin * CFrame.new(0, 1.0, 0), Color3.fromRGB(148, 156, 168), Enum.Material.Metal, true)
 	makePart(parent, "BenchSeat", Vector3.new(10.0, 0.52, 2.6), origin * CFrame.new(0, 1.42, 0), cushionColor, Enum.Material.Leather, true)
 	makePart(parent, "BenchBack", Vector3.new(10.0, 1.75, 0.48), origin * CFrame.new(0, 2.38, 1.06), cushionColor, Enum.Material.Leather, true)
@@ -558,18 +560,23 @@ local function buildDualEscalator(
 	topCenter: Vector3,
 	laneWidth: number,
 	accentColor: Color3
-)
+): ()
 	local model = Instance.new("Model")
 	model.Name = "DualEscalator_" .. name
 	model.Parent = decorParent
 
 	local deltaXZ = Vector3.new(topCenter.X - bottomCenter.X, 0, topCenter.Z - bottomCenter.Z)
-	local run = deltaXZ.Magnitude
 	local dir = deltaXZ.Unit
+	-- Terminate the sloped escalator 1.2 studs ahead of the mezzanine edge so the top comb plate meets the deck flush without clipping slabs, fascia trim, or glass balustrades
+	local rampTopCenter = topCenter - dir * 1.2
+	local rampDeltaXZ = Vector3.new(rampTopCenter.X - bottomCenter.X, 0, rampTopCenter.Z - bottomCenter.Z)
+	local run = rampDeltaXZ.Magnitude
 	local rise = topCenter.Y - bottomCenter.Y
 	local hyp = math.sqrt(run * run + rise * rise)
 	local pitchAngle = math.atan2(rise, run)
-	local centerXZ = (Vector3.new(bottomCenter.X, 0, bottomCenter.Z) + Vector3.new(topCenter.X, 0, topCenter.Z)) * 0.5
+	local cosP = math.cos(pitchAngle)
+	local sinP = math.sin(pitchAngle)
+	local centerXZ = (Vector3.new(bottomCenter.X, 0, bottomCenter.Z) + Vector3.new(rampTopCenter.X, 0, rampTopCenter.Z)) * 0.5
 	local midY = (bottomCenter.Y + topCenter.Y) * 0.5
 
 	-- baseCF has local +Z = +dir (uphill direction) and local +Y = world +Y
@@ -580,10 +587,18 @@ local function buildDualEscalator(
 	local totalWidth = laneWidth * 2 + 1.0
 	local laneOffset = laneWidth * 0.5 + 0.25
 
-	-- Single wide under-truss + bottom & top comb landings supporting both parallel lanes cleanly
-	makePart(model, "UnderTruss", Vector3.new(totalWidth + 0.8, 1.35, hyp + 1.0), baseCF * CFrame.new(0, -0.85, 0) * CFrame.Angles(-pitchAngle, 0, 0), Color3.fromRGB(36, 40, 48), Enum.Material.Metal, true)
-	makePart(model, "BottomComb", Vector3.new(totalWidth + 0.8, 0.5, 2.2), bottomBaseCF * CFrame.new(0, 0.25, 0), Color3.fromRGB(168, 176, 186), Enum.Material.Metal, true)
-	makePart(model, "TopComb", Vector3.new(totalWidth + 0.8, 0.5, 2.2), topBaseCF * CFrame.new(0, -0.25, 0), Color3.fromRGB(168, 176, 186), Enum.Material.Metal, true)
+	-- Single wide under-truss + bottom & top comb landings supporting both parallel lanes without overhanging past topCenter
+	makePart(
+		model,
+		"UnderTruss",
+		Vector3.new(totalWidth + 0.8, 1.2, hyp),
+		baseCF * CFrame.new(0, -0.7 * cosP, -0.7 * sinP) * CFrame.Angles(-pitchAngle, 0, 0),
+		Color3.fromRGB(36, 40, 48),
+		Enum.Material.Metal,
+		true
+	)
+	makePart(model, "BottomComb", Vector3.new(totalWidth + 0.8, 0.3, 1.4), bottomBaseCF * CFrame.new(0, 0.05, -0.7), Color3.fromRGB(168, 176, 186), Enum.Material.Metal, true)
+	makePart(model, "TopComb", Vector3.new(totalWidth + 0.8, 0.5, 1.4), topBaseCF * CFrame.new(0, -0.25, -0.7), Color3.fromRGB(168, 176, 186), Enum.Material.Metal, true)
 
 	-- Build both parallel lanes (Up Lane on -X, Down Lane on +X) along the exact same incline!
 	local laneOffsets = { -laneOffset, laneOffset }
@@ -606,7 +621,7 @@ local function buildDualEscalator(
 		-- Non-colliding ribbed metal treads parallel to the ramp
 		for s = 1, stepCount do
 			local t = (s - 0.5) / stepCount
-			local stepXZ = Vector3.new(bottomCenter.X, 0, bottomCenter.Z):Lerp(Vector3.new(topCenter.X, 0, topCenter.Z), t)
+			local stepXZ = Vector3.new(bottomCenter.X, 0, bottomCenter.Z):Lerp(Vector3.new(rampTopCenter.X, 0, rampTopCenter.Z), t)
 			local stepY = bottomCenter.Y + t * rise
 			local stepCF = CFrame.lookAt(Vector3.new(stepXZ.X, stepY - 0.25, stepXZ.Z), Vector3.new(stepXZ.X, stepY - 0.25, stepXZ.Z) - dir)
 				* CFrame.new(xLane, 0, 0)
@@ -614,21 +629,23 @@ local function buildDualEscalator(
 		end
 
 		-- Subtle LED directional entry strips on comb plates
-		makePart(model, "LaneGlowBot_" .. laneIdx, Vector3.new(laneWidth - 0.8, 0.12, 0.4), bottomBaseCF * CFrame.new(xLane, 0.52, -0.7), laneColors[laneIdx], Enum.Material.Neon, false)
-		makePart(model, "LaneGlowTop_" .. laneIdx, Vector3.new(laneWidth - 0.8, 0.12, 0.4), topBaseCF * CFrame.new(xLane, 0.04, 0.7), laneColors[laneIdx], Enum.Material.Neon, false)
+		makePart(model, "LaneGlowBot_" .. laneIdx, Vector3.new(laneWidth - 0.8, 0.12, 0.4), bottomBaseCF * CFrame.new(xLane, 0.22, -0.7), laneColors[laneIdx], Enum.Material.Neon, false)
+		makePart(model, "LaneGlowTop_" .. laneIdx, Vector3.new(laneWidth - 0.8, 0.12, 0.4), topBaseCF * CFrame.new(xLane, 0.04, -0.7), laneColors[laneIdx], Enum.Material.Neon, false)
 	end
 
 	-- 3 parallel balustrade dividers: Left outer, Center shared divider, Right outer
-	-- Using CFrame.Angles(-pitchAngle, 0, 0) ensures balustrades slope UP along +dir in exact alignment with the ramps!
+	-- Using vertical height projection (H*cosP, H*sinP) keeps both ends cleanly seated inside the bottom & top newels
 	local dividerXs = { -(laneWidth + 0.5), 0, (laneWidth + 0.5) }
 	for dIdx, dX in ipairs(dividerXs) do
 		local divCF = baseCF * CFrame.new(dX, 0, 0) * CFrame.Angles(-pitchAngle, 0, 0)
-		makePart(model, "Skirt_" .. dIdx, Vector3.new(0.45, 1.3, hyp + 1.0), divCF * CFrame.new(0, 0.4, 0), Color3.fromRGB(188, 196, 208), Enum.Material.Metal, true)
-		makePart(model, "SkirtGlow_" .. dIdx, Vector3.new(0.5, 0.18, hyp), divCF * CFrame.new(0, 0.9, 0), accentColor, Enum.Material.Neon, false)
-		makePart(windowsParent, name .. "_Balustrade_" .. dIdx, Vector3.new(0.24, 3.0, hyp), divCF * CFrame.new(0, 2.3, 0), Color3.fromRGB(178, 224, 248), Enum.Material.Glass, true, 0.48, false)
-		makePart(model, "Handrail_" .. dIdx, Vector3.new(0.48, 0.3, hyp + 1.2), divCF * CFrame.new(0, 3.85, 0), Color3.fromRGB(28, 30, 34), Enum.Material.SmoothPlastic, true)
-		makePart(model, "NewelBot_" .. dIdx, Vector3.new(0.5, 3.6, 1.1), bottomBaseCF * CFrame.new(dX, 1.8, -0.4), Color3.fromRGB(48, 52, 62), Enum.Material.Metal, true)
-		makePart(model, "NewelTop_" .. dIdx, Vector3.new(0.5, 3.6, 1.1), topBaseCF * CFrame.new(dX, 1.8, 0.4), Color3.fromRGB(48, 52, 62), Enum.Material.Metal, true)
+		makePart(model, "Skirt_" .. dIdx, Vector3.new(0.45, 1.2, hyp + 0.6), divCF * CFrame.new(0, 0.4 * cosP, 0.4 * sinP), Color3.fromRGB(188, 196, 208), Enum.Material.Metal, true)
+		makePart(model, "SkirtGlow_" .. dIdx, Vector3.new(0.5, 0.16, hyp), divCF * CFrame.new(0, 0.88 * cosP, 0.88 * sinP), accentColor, Enum.Material.Neon, false)
+		makePart(windowsParent, name .. "_Balustrade_" .. dIdx, Vector3.new(0.24, 2.6, hyp + 0.8), divCF * CFrame.new(0, 2.1 * cosP, 2.1 * sinP), Color3.fromRGB(178, 224, 248), Enum.Material.Glass, true, 0.48, false)
+		makePart(model, "Handrail_" .. dIdx, Vector3.new(0.48, 0.28, hyp + 0.6), divCF * CFrame.new(0, 3.65 * cosP, 3.65 * sinP), Color3.fromRGB(28, 30, 34), Enum.Material.SmoothPlastic, true)
+		makePart(model, "NewelBot_" .. dIdx, Vector3.new(0.5, 3.6, 1.4), bottomBaseCF * CFrame.new(dX, 1.8, -0.45), Color3.fromRGB(48, 52, 62), Enum.Material.Metal, true)
+		makePart(model, "HandrailCapBot_" .. dIdx, Vector3.new(0.52, 0.28, 1.5), bottomBaseCF * CFrame.new(dX, 3.65, -0.45), Color3.fromRGB(28, 30, 34), Enum.Material.SmoothPlastic, true)
+		makePart(model, "NewelTop_" .. dIdx, Vector3.new(0.5, 3.6, 1.4), topBaseCF * CFrame.new(dX, 1.8, -0.75), Color3.fromRGB(48, 52, 62), Enum.Material.Metal, true)
+		makePart(model, "HandrailCapTop_" .. dIdx, Vector3.new(0.52, 0.28, 1.5), topBaseCF * CFrame.new(dX, 3.65, -0.75), Color3.fromRGB(28, 30, 34), Enum.Material.SmoothPlastic, true)
 	end
 end
 
@@ -959,13 +976,13 @@ local function buildStorageShelf(parent: Instance, name: string, pos: Vector3, y
 	end
 end
 
-local function buildWorkbench(parent: Instance, slotIndex: number, pos: Vector3): WorkbenchStation
+local function buildWorkbench(parent: Instance, slotIndex: number, pos: Vector3, yawRad: number): WorkbenchStation
 	local model = Instance.new("Model")
 	model.Name = "Workbench_" .. slotIndex
 	model.Parent = parent
 
-	-- Origin faces North (-Z) directly toward the Hideout entrance / player spawn side
-	local origin = CFrame.new(pos.X, 0.4, pos.Z)
+	-- Local -Z is front (StatusStrip); yawRad rotates bench cleanly to face the center aisle (+X / -X)
+	local origin = CFrame.new(pos.X, 0.4, pos.Z) * CFrame.Angles(0, yawRad, 0)
 	for _, lx in ipairs({ -3.4, 3.4 }) do
 		for _, lz in ipairs({ -1.9, 1.9 }) do
 			makePart(model, "Foot", Vector3.new(0.65, 0.25, 0.65), origin * CFrame.new(lx, 0.125, lz), Color3.fromRGB(28, 30, 36), Enum.Material.SmoothPlastic, true)
@@ -1090,7 +1107,7 @@ local function buildStylizedNPC(
 	local npc = Instance.new("Model")
 	npc.Name = name
 
-	local origin = CFrame.new(pos.X, 0, pos.Z) * CFrame.Angles(0, yaw, 0)
+	local origin = CFrame.new(pos.X, pos.Y, pos.Z) * CFrame.Angles(0, yaw, 0)
 
 	local hrp = makePart(npc, "HumanoidRootPart", Vector3.new(2, 2, 1), origin * CFrame.new(0, 3.0, 0), shirtColor, Enum.Material.SmoothPlastic, false, 1)
 	npc.PrimaryPart = hrp
@@ -1249,26 +1266,97 @@ local function buildPerimeterTree(parent: Instance, pos: Vector3, scale: number)
 	makePart(parent, "CanopyTop", Vector3.new(6.2 * scale, 4.5 * scale, 6.2 * scale), CFrame.new(pos.X, 12.2 * scale, pos.Z), Color3.fromRGB(68, 146, 72), Enum.Material.Grass, false)
 end
 
-local function buildExteriorTarmacAndSkyline(parent: Instance)
-	-- Expansive grass infield + concrete/asphalt apron surrounding entire airport complex
-	makePart(parent, "AirfieldGrassBase", Vector3.new(1300, 0.4, 1100), CFrame.new(0, -0.25, -200), Color3.fromRGB(76, 114, 68), Enum.Material.Grass, true)
-	makePart(parent, "ApronConcrete", Vector3.new(720, 0.2, 340), CFrame.new(0, 0.08, -110), Color3.fromRGB(84, 88, 96), Enum.Material.Concrete, true)
+local function buildCityBuilding(
+	parent: Instance,
+	name: string,
+	pos: Vector3,
+	w: number,
+	d: number,
+	h: number,
+	bodyColor: Color3,
+	accentColor: Color3
+)
+	-- Grounded podium + upper tower + lit window bands + rooftop penthouse
+	local podiumH = math.min(18, h * 0.22)
+	makePart(parent, name .. "_Podium", Vector3.new(w + 6, podiumH, d + 6), CFrame.new(pos.X, podiumH * 0.5, pos.Z), Color3.fromRGB(48, 54, 66), Enum.Material.Concrete, false)
+	makePart(parent, name .. "_Shaft", Vector3.new(w, h, d), CFrame.new(pos.X, h * 0.5, pos.Z), bodyColor, Enum.Material.SmoothPlastic, false)
+	local bandStep = 14
+	for yBand = podiumH + 8, h - 6, bandStep do
+		makePart(parent, name .. "_WinBand_" .. yBand, Vector3.new(w + 0.5, 4.2, d + 0.5), CFrame.new(pos.X, yBand, pos.Z), accentColor, Enum.Material.Glass, false, 0.25)
+	end
+	makePart(parent, name .. "_Crown", Vector3.new(w * 0.68, 6, d * 0.68), CFrame.new(pos.X, h + 3, pos.Z), Color3.fromRGB(36, 42, 54), Enum.Material.Metal, false)
+	makePart(parent, name .. "_CrownGlow", Vector3.new(w * 0.72, 1.4, d * 0.72), CFrame.new(pos.X, h + 0.7, pos.Z), accentColor, Enum.Material.Neon, false)
+end
 
-	-- Two parallel asphalt Runways (Runway 27L & 27R) north of the airport glass curtain walls
-	for rIdx, zRunway in ipairs({ -275, -365 }) do
-		makePart(parent, "Runway_" .. rIdx, Vector3.new(1120, 0.25, 36), CFrame.new(0, 0.14, zRunway), Color3.fromRGB(40, 44, 50), Enum.Material.Asphalt, true)
-		-- Dashed white runway centerline
-		for xDash = -520, 520, 32 do
+local function buildParkingGarage(parent: Instance, name: string, pos: Vector3, w: number, d: number)
+	local levels = 3
+	local levelH = 8.5
+	for lvl = 1, levels do
+		local yDeck = lvl * levelH
+		makePart(parent, name .. "_Deck_" .. lvl, Vector3.new(w, 1.2, d), CFrame.new(pos.X, yDeck, pos.Z), Color3.fromRGB(118, 124, 134), Enum.Material.Concrete, false)
+		makePart(parent, name .. "_WallN_" .. lvl, Vector3.new(w, 3.2, 0.8), CFrame.new(pos.X, yDeck + 2.0, pos.Z - d * 0.5 + 0.4), Color3.fromRGB(152, 158, 168), Enum.Material.Concrete, false)
+		makePart(parent, name .. "_WallS_" .. lvl, Vector3.new(w, 3.2, 0.8), CFrame.new(pos.X, yDeck + 2.0, pos.Z + d * 0.5 - 0.4), Color3.fromRGB(152, 158, 168), Enum.Material.Concrete, false)
+	end
+	for _, xCol in ipairs({ -w * 0.46, 0, w * 0.46 }) do
+		for _, zCol in ipairs({ -d * 0.46, d * 0.46 }) do
+			makePart(parent, name .. "_Col", Vector3.new(2.2, levels * levelH, 2.2), CFrame.new(pos.X + xCol, levels * levelH * 0.5, pos.Z + zCol), Color3.fromRGB(78, 84, 96), Enum.Material.Concrete, false)
+		end
+	end
+	-- Stair tower & parked cars on roof deck
+	makePart(parent, name .. "_StairTower", Vector3.new(10, levels * levelH + 6, 10), CFrame.new(pos.X - w * 0.5 - 4, (levels * levelH + 6) * 0.5, pos.Z), Color3.fromRGB(64, 72, 86), Enum.Material.Glass, false, 0.3)
+	local carColors = { Color3.fromRGB(204, 52, 62), Color3.fromRGB(58, 128, 212), Color3.fromRGB(228, 232, 238), Color3.fromRGB(238, 182, 54) }
+	for i = 1, 4 do
+		local cx = pos.X - w * 0.32 + (i - 1) * (w * 0.21)
+		local topY = levels * levelH + 0.6
+		makePart(parent, name .. "_Car_" .. i, Vector3.new(6.2, 2.6, 11.0), CFrame.new(cx, topY + 1.3, pos.Z), carColors[i], Enum.Material.SmoothPlastic, false)
+	end
+end
+
+local function buildHangarAndJet(parent: Instance, name: string, pos: Vector3, yawDeg: number, accentColor: Color3)
+	local origin = CFrame.new(pos.X, 0, pos.Z) * CFrame.Angles(0, math.rad(yawDeg), 0)
+	makePart(parent, name .. "_WallL", Vector3.new(3.2, 24, 56), origin * CFrame.new(-28, 12, 0), Color3.fromRGB(76, 84, 98), Enum.Material.Metal, false)
+	makePart(parent, name .. "_WallR", Vector3.new(3.2, 24, 56), origin * CFrame.new(28, 12, 0), Color3.fromRGB(76, 84, 98), Enum.Material.Metal, false)
+	makePart(parent, name .. "_WallBack", Vector3.new(59, 24, 3.2), origin * CFrame.new(0, 12, 28), Color3.fromRGB(68, 76, 90), Enum.Material.Metal, false)
+	makePart(parent, name .. "_Roof", Vector3.new(62, 3.4, 60), origin * CFrame.new(0, 25.5, 0), Color3.fromRGB(48, 54, 66), Enum.Material.Metal, false)
+	makePart(parent, name .. "_SignStrip", Vector3.new(44, 2.2, 1.0), origin * CFrame.new(0, 22.8, -29.2), accentColor, Enum.Material.Neon, false)
+	buildStylizedPlane(parent, name .. "_ParkedPlane", origin * CFrame.new(0, 0.18, -8) * CFrame.Angles(0, math.pi * 0.5, 0), 0.78, accentColor, accentColor)
+end
+
+local function buildJetwayBridge(parent: Instance, name: string, terminalPos: Vector3, planeDoorPos: Vector3)
+	local delta = planeDoorPos - terminalPos
+	local len = delta.Magnitude
+	local mid = (terminalPos + planeDoorPos) * 0.5
+	local yaw = math.atan2(-delta.X, -delta.Z) + math.pi * 0.5
+	local cf = CFrame.new(mid.X, 8.2, mid.Z) * CFrame.Angles(0, yaw, 0)
+	makePart(parent, name .. "_Tunnel", Vector3.new(len, 4.6, 4.2), cf, Color3.fromRGB(224, 228, 236), Enum.Material.SmoothPlastic, false)
+	makePart(parent, name .. "_Glass", Vector3.new(len * 0.88, 2.2, 4.4), cf, Color3.fromRGB(132, 188, 228), Enum.Material.Glass, false, 0.4)
+	makePart(parent, name .. "_Leg", Vector3.new(1.6, 6.2, 1.6), CFrame.new(planeDoorPos.X, 3.1, planeDoorPos.Z), Color3.fromRGB(58, 64, 76), Enum.Material.Metal, false)
+end
+
+local function buildFuelTruck(parent: Instance, name: string, pos: Vector3, yawDeg: number)
+	local origin = CFrame.new(pos.X, 0.18, pos.Z) * CFrame.Angles(0, math.rad(yawDeg), 0)
+	makePart(parent, name .. "_Cab", Vector3.new(4.2, 4.0, 4.6), origin * CFrame.new(0, 2.6, -4.8), Color3.fromRGB(238, 240, 246), Enum.Material.SmoothPlastic, false)
+	makePart(parent, name .. "_Tank", Vector3.new(4.4, 4.2, 9.5), origin * CFrame.new(0, 2.9, 2.6), Color3.fromRGB(246, 188, 52), Enum.Material.Metal, false)
+	makePart(parent, name .. "_Wheels", Vector3.new(4.8, 1.6, 11.5), origin * CFrame.new(0, 0.8, 0), Color3.fromRGB(28, 30, 34), Enum.Material.SmoothPlastic, false)
+end
+
+local function buildExteriorTarmacAndSkyline(parent: Instance)
+	-- Expansive 360-degree terrain base spanning well beyond all four airport curtain walls
+	makePart(parent, "AirfieldGrassBase", Vector3.new(1400, 0.3, 1300), CFrame.new(0, -0.2, -100), Color3.fromRGB(72, 110, 64), Enum.Material.Grass, true)
+	makePart(parent, "ApronConcrete", Vector3.new(760, 0.2, 340), CFrame.new(0, 0.08, -120), Color3.fromRGB(84, 88, 96), Enum.Material.Concrete, true)
+
+	-- Parallel Asphalt Runways (North)
+	for rIdx, zRunway in ipairs({ -285, -375 }) do
+		makePart(parent, "Runway_" .. rIdx, Vector3.new(1180, 0.25, 36), CFrame.new(0, 0.14, zRunway), Color3.fromRGB(40, 44, 50), Enum.Material.Asphalt, true)
+		for xDash = -540, 540, 32 do
 			makePart(parent, string.format("CenterDash_%d_%d", rIdx, xDash), Vector3.new(16, 0.06, 1.4), CFrame.new(xDash, 0.28, zRunway), Color3.fromRGB(242, 245, 250), Enum.Material.SmoothPlastic, false)
 		end
-		-- Threshold piano-key stripes on West & East ends
-		for _, xEnd in ipairs({ -540, 540 }) do
+		for _, xEnd in ipairs({ -560, 560 }) do
 			for k = -3, 3 do
 				makePart(parent, string.format("Thresh_%d_%d_%d", rIdx, xEnd, k), Vector3.new(14, 0.06, 1.8), CFrame.new(xEnd, 0.28, zRunway + k * 4.4), Color3.fromRGB(242, 245, 250), Enum.Material.SmoothPlastic, false)
 			end
 		end
-		-- Post-mounted glowing edge lights along runway shoulders
-		for xLight = -480, 480, 40 do
+		for xLight = -500, 500, 40 do
 			for _, zSide in ipairs({ zRunway - 19, zRunway + 19 }) do
 				makePart(parent, "EdgePost", Vector3.new(0.45, 1.1, 0.45), CFrame.new(xLight, 0.72, zSide), Color3.fromRGB(48, 52, 60), Enum.Material.Metal, false)
 				makePart(parent, "EdgeLamp", Vector3.new(0.65, 0.4, 0.65), CFrame.new(xLight, 1.38, zSide), Color3.fromRGB(255, 224, 118), Enum.Material.Neon, false)
@@ -1276,14 +1364,13 @@ local function buildExteriorTarmacAndSkyline(parent: Instance)
 		end
 	end
 
-	-- Taxiway yellow lines & connector ramps
-	makePart(parent, "TaxiWayNorth", Vector3.new(700, 0.1, 1.4), CFrame.new(0, 0.22, -214), Color3.fromRGB(245, 198, 52), Enum.Material.SmoothPlastic, false)
-	for _, xConn in ipairs({ -220, -100, 100, 220 }) do
-		makePart(parent, "TaxiConn_" .. xConn, Vector3.new(18, 0.2, 62), CFrame.new(xConn, 0.14, -245), Color3.fromRGB(52, 56, 64), Enum.Material.Asphalt, true)
-		makePart(parent, "TaxiLine_" .. xConn, Vector3.new(1.2, 0.06, 60), CFrame.new(xConn, 0.26, -245), Color3.fromRGB(245, 198, 52), Enum.Material.SmoothPlastic, false)
+	makePart(parent, "TaxiWayNorth", Vector3.new(740, 0.1, 1.4), CFrame.new(0, 0.22, -214), Color3.fromRGB(245, 198, 52), Enum.Material.SmoothPlastic, false)
+	for _, xConn in ipairs({ -240, -110, 110, 240 }) do
+		makePart(parent, "TaxiConn_" .. xConn, Vector3.new(18, 0.2, 68), CFrame.new(xConn, 0.14, -248), Color3.fromRGB(52, 56, 64), Enum.Material.Asphalt, true)
+		makePart(parent, "TaxiLine_" .. xConn, Vector3.new(1.2, 0.06, 64), CFrame.new(xConn, 0.26, -248), Color3.fromRGB(245, 198, 52), Enum.Material.SmoothPlastic, false)
 	end
 
-	-- Air Traffic Control Tower (visible through International & Celebrity West windows)
+	-- Air Traffic Control Tower
 	local towerPos = Vector3.new(-248, 0, -212)
 	makePart(parent, "ATCTowerShaft", Vector3.new(12, 54, 12), CFrame.new(towerPos + Vector3.new(0, 27, 0)), Color3.fromRGB(198, 204, 214), Enum.Material.Concrete, true)
 	makePart(parent, "ATCTowerCab", Vector3.new(22, 9, 22), CFrame.new(towerPos + Vector3.new(0, 58, 0)), Color3.fromRGB(68, 124, 168), Enum.Material.Glass, true, 0.35)
@@ -1291,13 +1378,21 @@ local function buildExteriorTarmacAndSkyline(parent: Instance)
 	makePart(parent, "ATCRadarMast", Vector3.new(1.2, 10, 1.2), CFrame.new(towerPos + Vector3.new(0, 69, 0)), Color3.fromRGB(168, 176, 188), Enum.Material.Metal, false)
 	makePart(parent, "ATCBeacon", Vector3.new(2.2, 1.6, 2.2), CFrame.new(towerPos + Vector3.new(0, 74.5, 0)), Color3.fromRGB(255, 68, 76), Enum.Material.Neon, false)
 
-	-- 4 Grounded Aircraft across Gates & Runways
+	-- Parked & Taxiing Aircraft + Jetways + Hangars + Fuel Trucks
 	buildStylizedPlane(parent, "CelebrityPrivateJet", CFrame.new(12, 0.18, -222), 0.95, Color3.fromRGB(255, 198, 62), Color3.fromRGB(255, 86, 152))
 	buildStylizedPlane(parent, "InternationalAirliner", CFrame.new(-168, 0.18, -112) * CFrame.Angles(0, math.rad(14), 0), 1.05, GameConfig.TERMINALS.International.accentColor, GameConfig.TERMINALS.International.accentColor)
 	buildStylizedPlane(parent, "VipCharterAirliner", CFrame.new(168, 0.18, -138) * CFrame.Angles(0, math.rad(-18), 0), 0.92, Color3.fromRGB(255, 194, 64), Color3.fromRGB(48, 56, 86))
-	buildStylizedPlane(parent, "RunwayTaxiAirliner", CFrame.new(-135, 0.26, -275), 1.25, Color3.fromRGB(78, 178, 255), Color3.fromRGB(36, 72, 148))
+	buildStylizedPlane(parent, "RunwayTaxiAirliner1", CFrame.new(-135, 0.26, -285), 1.25, Color3.fromRGB(78, 178, 255), Color3.fromRGB(36, 72, 148))
+	buildStylizedPlane(parent, "RunwayTaxiAirliner2", CFrame.new(240, 0.26, -375) * CFrame.Angles(0, math.pi, 0), 1.2, Color3.fromRGB(238, 92, 68), Color3.fromRGB(168, 32, 46))
 
-	-- Baggage Tug & Loaded Carts outside First-Class VIP North Glass
+	buildJetwayBridge(parent, "IntlJetway", Vector3.new(-158, 0, -59), Vector3.new(-164, 0, -104))
+	buildJetwayBridge(parent, "VipJetway", Vector3.new(158, 0, -59), Vector3.new(164, 0, -130))
+	buildFuelTruck(parent, "IntlFuelTruck", Vector3.new(-142, 0, -136), 35)
+	buildFuelTruck(parent, "VipFuelTruck", Vector3.new(140, 0, -118), -40)
+	buildHangarAndJet(parent, "WestHangar", Vector3.new(-325, 0, -138), -90, GameConfig.TERMINALS.International.accentColor)
+	buildHangarAndJet(parent, "EastHangar", Vector3.new(325, 0, -138), 90, GameConfig.TERMINALS.FirstClass.accentColor)
+
+	-- Baggage Tug & Loaded Carts
 	local tugPos = Vector3.new(158, 0.18, -96)
 	makePart(parent, "BaggageTugBody", Vector3.new(8, 3.2, 4.4), CFrame.new(tugPos + Vector3.new(0, 2.2, 0)), Color3.fromRGB(238, 186, 52), Enum.Material.SmoothPlastic, true)
 	makePart(parent, "BaggageTugCab", Vector3.new(4.2, 2.6, 4.0), CFrame.new(tugPos + Vector3.new(-1.2, 5.1, 0)), Color3.fromRGB(48, 56, 70), Enum.Material.Glass, false, 0.35)
@@ -1310,13 +1405,46 @@ local function buildExteriorTarmacAndSkyline(parent: Instance)
 		makePart(parent, "TrailerHitch_" .. c, Vector3.new(2.4, 0.35, 0.5), CFrame.new(cPos + Vector3.new(-4.5, 1.1, 0)), Color3.fromRGB(48, 52, 60), Enum.Material.Metal, false)
 	end
 
-	-- Perimeter Trees framing East, West & South approaches outside glass
-	for _, zTree in ipairs({ -160, -110, -50, 10, 70 }) do
-		buildPerimeterTree(parent, Vector3.new(-244, 0, zTree), 1.35)
-		buildPerimeterTree(parent, Vector3.new(244, 0, zTree), 1.35)
+	-- Perimeter Roads & Elevated Highway Overpass (strictly clear of Corridor X=-35..35, Z=65..102 and Hideout X=-69..69, Z=102..163)
+	makePart(parent, "RoadWestPerimeter", Vector3.new(22, 0.2, 300), CFrame.new(-244, 0.06, 42), Color3.fromRGB(48, 52, 58), Enum.Material.Asphalt, false)
+	makePart(parent, "RoadEastPerimeter", Vector3.new(22, 0.2, 300), CFrame.new(244, 0.06, 42), Color3.fromRGB(48, 52, 58), Enum.Material.Asphalt, false)
+	makePart(parent, "RoadSouthW", Vector3.new(196, 0.2, 20), CFrame.new(-144, 0.06, 92), Color3.fromRGB(48, 52, 58), Enum.Material.Asphalt, false)
+	makePart(parent, "RoadSouthE", Vector3.new(196, 0.2, 20), CFrame.new(144, 0.06, 92), Color3.fromRGB(48, 52, 58), Enum.Material.Asphalt, false)
+	makePart(parent, "RoadSouthLoop", Vector3.new(620, 0.2, 24), CFrame.new(0, 0.06, 192), Color3.fromRGB(48, 52, 58), Enum.Material.Asphalt, false)
+
+	-- Streetlights along South & Perimeter Boulevards
+	for _, xLamp in ipairs({ -200, -140, -80, 80, 140, 200 }) do
+		makePart(parent, "BoulevardPole_" .. xLamp, Vector3.new(0.6, 14, 0.6), CFrame.new(xLamp, 7, 104), Color3.fromRGB(68, 74, 86), Enum.Material.Metal, false)
+		makePart(parent, "BoulevardArm_" .. xLamp, Vector3.new(0.5, 0.5, 4.2), CFrame.new(xLamp, 13.8, 102), Color3.fromRGB(68, 74, 86), Enum.Material.Metal, false)
+		makePart(parent, "BoulevardLamp_" .. xLamp, Vector3.new(1.4, 0.4, 2.0), CFrame.new(xLamp, 13.4, 100.4), Color3.fromRGB(255, 224, 152), Enum.Material.Neon, false)
 	end
 
-	-- Stylized Distant Metropolitan City Skyline visible from North, West & East windows
+	-- Elevated Highway Overpass (Z = 242, Y = 18) with piers & streetlights
+	makePart(parent, "HighwayDeck", Vector3.new(1240, 2.2, 34), CFrame.new(0, 18.0, 242), Color3.fromRGB(54, 58, 66), Enum.Material.Asphalt, false)
+	makePart(parent, "HighwayRailN", Vector3.new(1240, 2.6, 1.2), CFrame.new(0, 20.4, 225.6), Color3.fromRGB(168, 174, 184), Enum.Material.Concrete, false)
+	makePart(parent, "HighwayRailS", Vector3.new(1240, 2.6, 1.2), CFrame.new(0, 20.4, 258.4), Color3.fromRGB(168, 174, 184), Enum.Material.Concrete, false)
+	for xPier = -480, 480, 80 do
+		makePart(parent, "HighwayPier_" .. xPier, Vector3.new(6, 17, 14), CFrame.new(xPier, 8.5, 242), Color3.fromRGB(132, 138, 148), Enum.Material.Concrete, false)
+		makePart(parent, "HighwayMedianPole_" .. xPier, Vector3.new(0.7, 12, 0.7), CFrame.new(xPier, 25, 242), Color3.fromRGB(76, 82, 92), Enum.Material.Metal, false)
+		makePart(parent, "HighwayLampN_" .. xPier, Vector3.new(2.2, 0.5, 4.8), CFrame.new(xPier, 30.8, 242), Color3.fromRGB(255, 224, 156), Enum.Material.Neon, false)
+	end
+
+	-- Multi-level Airport Parking Garages outside South-West & South-East windows
+	buildParkingGarage(parent, "ParkingGarageSW", Vector3.new(-150, 0, 144), 76, 48)
+	buildParkingGarage(parent, "ParkingGarageSE", Vector3.new(150, 0, 144), 76, 48)
+
+	-- Dense Tree Groves on West, East & South landscaped parks
+	for _, zTree in ipairs({ -60, -20, 20, 60, 120, 165 }) do
+		buildPerimeterTree(parent, Vector3.new(-224, 0, zTree), 1.35)
+		buildPerimeterTree(parent, Vector3.new(224, 0, zTree), 1.35)
+		buildPerimeterTree(parent, Vector3.new(-264, 0, zTree + 12), 1.45)
+		buildPerimeterTree(parent, Vector3.new(264, 0, zTree + 12), 1.45)
+	end
+	for _, xTree in ipairs({ -200, -130, -90, 90, 130, 200 }) do
+		buildPerimeterTree(parent, Vector3.new(xTree, 0, 74), 1.2)
+	end
+
+	-- Dense 360-Degree City Skyline (North, West, East, and South Districts)
 	local buildingPalette = {
 		Color3.fromRGB(64, 76, 98),
 		Color3.fromRGB(82, 92, 112),
@@ -1340,16 +1468,25 @@ local function buildExteriorTarmacAndSkyline(parent: Instance)
 	}
 	for idx, b in ipairs(northTowers) do
 		local col = buildingPalette[((idx - 1) % #buildingPalette) + 1]
-		makePart(parent, "SkylineN_" .. idx, Vector3.new(b.w, b.h, b.d), CFrame.new(b.x, b.h * 0.5, b.z), col, Enum.Material.SmoothPlastic, false)
-		makePart(parent, "SkylineCapN_" .. idx, Vector3.new(b.w * 0.72, 2.2, b.d * 0.72), CFrame.new(b.x, b.h + 1.1, b.z), Color3.fromRGB(168, 214, 244), Enum.Material.Neon, false)
+		buildCityBuilding(parent, "SkylineN_" .. idx, Vector3.new(b.x, 0, b.z), b.w, b.d, b.h, col, Color3.fromRGB(168, 214, 244))
 	end
 
-	-- Distant East & West skyline silhouettes
-	for idx, zSide in ipairs({ -260, -160, -60, 40 }) do
-		local hW = 88 + (idx % 3) * 32
-		local hE = 96 + ((idx + 1) % 3) * 34
-		makePart(parent, "SkylineW_" .. idx, Vector3.new(44, hW, 48), CFrame.new(-420, hW * 0.5, zSide), buildingPalette[(idx % 4) + 1], Enum.Material.SmoothPlastic, false)
-		makePart(parent, "SkylineE_" .. idx, Vector3.new(44, hE, 48), CFrame.new(420, hE * 0.5, zSide), buildingPalette[((idx + 1) % 4) + 1], Enum.Material.SmoothPlastic, false)
+	-- West & East Airport Hotel / Corporate Districts (directly outside West & East terminal glass)
+	for idx, zCoord in ipairs({ -40, 35, 115, 185 }) do
+		local hW = 72 + (idx % 3) * 34
+		local hE = 78 + ((idx + 1) % 3) * 36
+		buildCityBuilding(parent, "WestHotel_" .. idx, Vector3.new(-305, 0, zCoord), 44, 46, hW, buildingPalette[(idx % 4) + 1], Color3.fromRGB(142, 212, 250))
+		buildCityBuilding(parent, "WestTower_" .. idx, Vector3.new(-390, 0, zCoord + 15), 52, 50, hW + 46, buildingPalette[((idx + 2) % 4) + 1], Color3.fromRGB(255, 218, 146))
+		buildCityBuilding(parent, "EastHotel_" .. idx, Vector3.new(305, 0, zCoord), 44, 46, hE, buildingPalette[((idx + 1) % 4) + 1], Color3.fromRGB(255, 206, 112))
+		buildCityBuilding(parent, "EastTower_" .. idx, Vector3.new(390, 0, zCoord - 15), 52, 50, hE + 48, buildingPalette[((idx + 3) % 4) + 1], Color3.fromRGB(168, 214, 244))
+	end
+
+	-- South City Skyline District across the highway overpass (directly visible from South terminal windows)
+	for idx = 1, 11 do
+		local sx = -450 + (idx - 1) * 90
+		local sz = 315 + (idx % 2) * 55
+		local sh = 85 + ((idx * 37) % 105)
+		buildCityBuilding(parent, "SouthTower_" .. idx, Vector3.new(sx, 0, sz), 48, 48, sh, buildingPalette[(idx % 4) + 1], if idx % 2 == 0 then Color3.fromRGB(255, 214, 140) else Color3.fromRGB(148, 212, 250))
 	end
 end
 
@@ -1468,38 +1605,39 @@ local function buildServiceCorridorAndHideout(
 	buildVentDuct(decorParent, "HideoutMainHVAC", Vector3.new(-60, 15.6, 112), Vector3.new(60, 15.6, 112), HIDEOUT_CEILING_Y - 0.2, 4.0, 2.4)
 	buildVentDuct(decorParent, "HideoutSouthHVAC", Vector3.new(-60, 15.6, 152), Vector3.new(24, 15.6, 152), HIDEOUT_CEILING_Y - 0.2, 3.2, 2.0)
 
-	-- Industrial Storage Shelving grounded along West & South Hideout walls
-	buildStorageShelf(decorParent, "HideoutShelfW1", Vector3.new(-64.5, 0, 118), 90)
-	buildStorageShelf(decorParent, "HideoutShelfW2", Vector3.new(-64.5, 0, 144), 90)
-	buildStorageShelf(decorParent, "HideoutShelfS1", Vector3.new(-32, 0, 158.5), 0)
-	buildStorageShelf(decorParent, "HideoutShelfS2", Vector3.new(-10, 0, 158.5), 0)
+	-- Industrial Storage Shelving neatly along the South Hideout wall
+	buildStorageShelf(decorParent, "HideoutShelfS1", Vector3.new(-46, 0, 158.5), 0)
+	buildStorageShelf(decorParent, "HideoutShelfS2", Vector3.new(-16, 0, 158.5), 0)
+	buildStorageShelf(decorParent, "HideoutShelfS3", Vector3.new(16, 0, 158.5), 0)
+	buildStorageShelf(decorParent, "HideoutShelfS4", Vector3.new(46, 0, 158.5), 0)
 
-	-- 4 Grounded Cracking Workbenches in a clean 2x2 grid, all facing North (-Z) toward the player spawn archway!
+	-- 4 Grounded Cracking Workbenches in a symmetric 2x2 grid rotated exact +-90 degrees toward the center aisle!
+	-- Workbench_1 is front-most closest to the Hideout entrance archway (Z = 102) on the left column.
 	local workbenches: { WorkbenchStation } = {}
-	local benchPositions = {
-		Vector3.new(-38, 0, 122),
-		Vector3.new(-16, 0, 122),
-		Vector3.new(-38, 0, 142),
-		Vector3.new(-16, 0, 142),
+	local benchConfigs = {
+		{ pos = Vector3.new(-22, 0, 118), yaw = -math.pi * 0.5 }, -- #1 Front-Left facing East (+X) toward center aisle
+		{ pos = Vector3.new(22, 0, 118), yaw = math.pi * 0.5 },   -- #2 Front-Right facing West (-X) toward center aisle
+		{ pos = Vector3.new(-22, 0, 136), yaw = -math.pi * 0.5 }, -- #3 Back-Left facing East (+X) toward center aisle
+		{ pos = Vector3.new(22, 0, 136), yaw = math.pi * 0.5 },   -- #4 Back-Right facing West (-X) toward center aisle
 	}
-	for i, benchPos in ipairs(benchPositions) do
-		table.insert(workbenches, buildWorkbench(decorParent, i, benchPos))
+	for i, cfg in ipairs(benchConfigs) do
+		table.insert(workbenches, buildWorkbench(decorParent, i, cfg.pos, cfg.yaw))
 	end
 
-	-- Shady Fence Sell Counter rotated cleanly toward the Hideout entrance & center floor (-X / -Z)
+	-- Shady Fence Sell Counter on East side (exact +90 deg) facing straight West (-X) toward the center aisle
 	local fenceModel = Instance.new("Model")
 	fenceModel.Name = "FenceCounter"
 	fenceModel.Parent = decorParent
-	local fenceYaw = math.rad(72)
-	local fenceOrigin = CFrame.new(44, 0.4, 120) * CFrame.Angles(0, fenceYaw, 0)
-	local fenceDesk = makePart(fenceModel, "CounterDesk", Vector3.new(12, 3.6, 4.2), fenceOrigin * CFrame.new(0, 1.8, 0), Color3.fromRGB(76, 50, 36), Enum.Material.Wood, true)
-	makePart(fenceModel, "CounterTrim", Vector3.new(12.2, 0.35, 4.4), fenceOrigin * CFrame.new(0, 3.7, 0), Color3.fromRGB(255, 198, 62), Enum.Material.Metal, true)
-	makePart(fenceModel, "FencePostL", Vector3.new(0.4, 5.4, 0.4), fenceOrigin * CFrame.new(-5, 6.4, 0), Color3.fromRGB(48, 52, 62), Enum.Material.Metal, false)
-	makePart(fenceModel, "FencePostR", Vector3.new(0.4, 5.4, 0.4), fenceOrigin * CFrame.new(5, 6.4, 0), Color3.fromRGB(48, 52, 62), Enum.Material.Metal, false)
+	local fenceYaw = math.pi * 0.5
+	local fenceOrigin = CFrame.new(54, 0.4, 132) * CFrame.Angles(0, fenceYaw, 0)
+	local fenceDesk = makePart(fenceModel, "CounterDesk", Vector3.new(14, 3.6, 4.2), fenceOrigin * CFrame.new(0, 1.8, 0), Color3.fromRGB(76, 50, 36), Enum.Material.Wood, true)
+	makePart(fenceModel, "CounterTrim", Vector3.new(14.2, 0.35, 4.4), fenceOrigin * CFrame.new(0, 3.7, 0), Color3.fromRGB(255, 198, 62), Enum.Material.Metal, true)
+	makePart(fenceModel, "FencePostL", Vector3.new(0.4, 5.4, 0.4), fenceOrigin * CFrame.new(-5.8, 6.4, 0), Color3.fromRGB(48, 52, 62), Enum.Material.Metal, false)
+	makePart(fenceModel, "FencePostR", Vector3.new(0.4, 5.4, 0.4), fenceOrigin * CFrame.new(5.8, 6.4, 0), Color3.fromRGB(48, 52, 62), Enum.Material.Metal, false)
 	makeSignBoard(
 		fenceModel,
 		"FenceSign",
-		Vector3.new(11, 2.6, 0.5),
+		Vector3.new(12.6, 2.6, 0.5),
 		fenceOrigin * CFrame.new(0, 8.8, 0),
 		Color3.fromRGB(24, 20, 30),
 		"VINNIE'S FENCE",
@@ -1528,24 +1666,24 @@ local function buildServiceCorridorAndHideout(
 	fencePrompt.ObjectText = "Vinnie the Fence"
 	fencePrompt.KeyboardKeyCode = Enum.KeyCode.E
 	fencePrompt.HoldDuration = 0
-	fencePrompt.MaxActivationDistance = 12
+	fencePrompt.MaxActivationDistance = 14
 	fencePrompt.RequiresLineOfSight = false
 	fencePrompt.Parent = fenceDesk
 
-	-- Black-Market Stealth & Tools Shop Kiosk rotated toward the Hideout entrance & central workbenches
+	-- Black-Market Stealth & Tools Shop Kiosk on opposite West side (exact -90 deg) facing straight East (+X) toward center aisle
 	local shopModel = Instance.new("Model")
 	shopModel.Name = "StealthShopKiosk"
 	shopModel.Parent = decorParent
-	local shopYaw = math.rad(62)
-	local shopOrigin = CFrame.new(44, 0.4, 144) * CFrame.Angles(0, shopYaw, 0)
-	local shopCounter = makePart(shopModel, "ShopCounter", Vector3.new(12, 3.6, 4.2), shopOrigin * CFrame.new(0, 1.8, 0), Color3.fromRGB(32, 44, 62), Enum.Material.Metal, true)
-	makePart(shopModel, "ShopNeon", Vector3.new(12.2, 0.35, 4.4), shopOrigin * CFrame.new(0, 3.7, 0), Color3.fromRGB(74, 208, 255), Enum.Material.Neon, false)
-	makePart(shopModel, "ShopPostL", Vector3.new(0.4, 5.4, 0.4), shopOrigin * CFrame.new(-5, 6.4, 0), Color3.fromRGB(48, 52, 62), Enum.Material.Metal, false)
-	makePart(shopModel, "ShopPostR", Vector3.new(0.4, 5.4, 0.4), shopOrigin * CFrame.new(5, 6.4, 0), Color3.fromRGB(48, 52, 62), Enum.Material.Metal, false)
+	local shopYaw = -math.pi * 0.5
+	local shopOrigin = CFrame.new(-54, 0.4, 132) * CFrame.Angles(0, shopYaw, 0)
+	local shopCounter = makePart(shopModel, "ShopCounter", Vector3.new(14, 3.6, 4.2), shopOrigin * CFrame.new(0, 1.8, 0), Color3.fromRGB(32, 44, 62), Enum.Material.Metal, true)
+	makePart(shopModel, "ShopNeon", Vector3.new(14.2, 0.35, 4.4), shopOrigin * CFrame.new(0, 3.7, 0), Color3.fromRGB(74, 208, 255), Enum.Material.Neon, false)
+	makePart(shopModel, "ShopPostL", Vector3.new(0.4, 5.4, 0.4), shopOrigin * CFrame.new(-5.8, 6.4, 0), Color3.fromRGB(48, 52, 62), Enum.Material.Metal, false)
+	makePart(shopModel, "ShopPostR", Vector3.new(0.4, 5.4, 0.4), shopOrigin * CFrame.new(5.8, 6.4, 0), Color3.fromRGB(48, 52, 62), Enum.Material.Metal, false)
 	makeSignBoard(
 		shopModel,
 		"ShopSign",
-		Vector3.new(11, 2.6, 0.5),
+		Vector3.new(12.6, 2.6, 0.5),
 		shopOrigin * CFrame.new(0, 8.8, 0),
 		Color3.fromRGB(16, 22, 36),
 		"BLACK-MARKET GEAR",
@@ -1574,7 +1712,7 @@ local function buildServiceCorridorAndHideout(
 	shopPrompt.ObjectText = "Gear, Tools & Gadgets"
 	shopPrompt.KeyboardKeyCode = Enum.KeyCode.E
 	shopPrompt.HoldDuration = 0
-	shopPrompt.MaxActivationDistance = 12
+	shopPrompt.MaxActivationDistance = 14
 	shopPrompt.RequiresLineOfSight = false
 	shopPrompt.Parent = shopCounter
 
@@ -1651,17 +1789,20 @@ function WorldBuilder.Build(): WorldRefs
 	buildCurtainWallBay(opaqueCover, windows, "SouthCurtainE", Vector3.new(35, 0, 65), Vector3.new(208, 0, 65), 0, AIRPORT_ROOF_Y, 3.6, Color3.fromRGB(54, 62, 76), Color3.fromRGB(156, 206, 236))
 	buildCurtainWallBay(opaqueCover, windows, "SouthCenterClerestory", Vector3.new(-35, 0, 65), Vector3.new(35, 0, 65), 18.0, AIRPORT_ROOF_Y, 0, Color3.fromRGB(38, 44, 56), Color3.fromRGB(156, 206, 236))
 
+	-- Mounted directly onto the front outward-facing gold fascia beam of DomMainMezz facing the ground-floor concourse (-Z)
+	makePart(decor, "MarqueeMountL", Vector3.new(0.8, 0.9, 1.0), CFrame.new(-14, 11.5, 45.95), Color3.fromRGB(46, 52, 64), Enum.Material.Metal, false)
+	makePart(decor, "MarqueeMountR", Vector3.new(0.8, 0.9, 1.0), CFrame.new(14, 11.5, 45.95), Color3.fromRGB(46, 52, 64), Enum.Material.Metal, false)
 	makeSignBoard(
 		decor,
 		"MainAirportMarquee",
-		Vector3.new(32, 3.4, 0.6),
-		CFrame.new(0, 15.8, 64.1) * CFrame.Angles(0, math.pi, 0),
+		Vector3.new(38, 3.6, 0.65),
+		CFrame.new(0, 11.5, 45.45),
 		Color3.fromRGB(16, 22, 34),
 		"SKYPORT INTERNATIONAL",
 		Color3.fromRGB(82, 206, 255),
 		"DOMESTIC • INTERNATIONAL • FIRST-CLASS • CELEBRITY",
 		Enum.NormalId.Front,
-		true
+		false
 	)
 
 	buildCurtainWallBay(opaqueCover, windows, "WestOuterCurtain", Vector3.new(-208, 0, -58), Vector3.new(-208, 0, 65), 0, AIRPORT_ROOF_Y, 3.6, Color3.fromRGB(204, 210, 218), Color3.fromRGB(164, 212, 240))
@@ -1755,23 +1896,23 @@ function WorldBuilder.Build(): WorldRefs
 	buildTrashRecyclingStation(opaqueCover, decor, "DomBinsE", Vector3.new(18, 0, 50), 0)
 	buildInfoKiosk(opaqueCover, decor, "DomInfo", Vector3.new(-15, 0, 34), 35, "TERMINAL MAP", GameConfig.TERMINALS.Domestic.accentColor)
 
-	-- Domestic Grand Mezzanine & Side Skywalks + Side-by-Side Parallel Dual Escalators
+	-- Domestic Grand Mezzanine & Side Skywalks (flush with perimeter/divider walls) + Parallel Dual Escalators
 	buildMezzanineDeck(
 		decor,
 		opaqueCover,
 		windows,
 		"DomMainMezz",
-		-84,
-		84,
+		-85,
+		85,
 		46,
-		63,
+		64.6,
 		12.0,
 		Color3.fromRGB(218, 224, 232),
 		Color3.fromRGB(198, 160, 72),
-		{ N = true, S = false, W = false, E = false },
+		{ N = true, S = true, W = false, E = false },
 		{
-			{ axis = "Z", minV = -84, maxV = -60, side = "N" },
-			{ axis = "Z", minV = 60, maxV = 84, side = "N" },
+			{ axis = "Z", minV = -85, maxV = -59, side = "N" },
+			{ axis = "Z", minV = 59, maxV = 85, side = "N" },
 		}
 	)
 	buildMezzanineDeck(
@@ -1779,9 +1920,9 @@ function WorldBuilder.Build(): WorldRefs
 		opaqueCover,
 		windows,
 		"DomSkywalkW",
-		-84,
+		-85,
 		-73,
-		-46,
+		-57,
 		46,
 		12.0,
 		Color3.fromRGB(218, 224, 232),
@@ -1795,8 +1936,8 @@ function WorldBuilder.Build(): WorldRefs
 		windows,
 		"DomSkywalkE",
 		73,
-		84,
-		-46,
+		85,
+		-57,
 		46,
 		12.0,
 		Color3.fromRGB(218, 224, 232),
@@ -1807,6 +1948,14 @@ function WorldBuilder.Build(): WorldRefs
 	buildDualEscalator(decor, windows, "DomWest", Vector3.new(-66.5, 0.4, 22), Vector3.new(-66.5, 12.0, 46), 4.2, GameConfig.TERMINALS.Domestic.accentColor)
 	buildDualEscalator(decor, windows, "DomEast", Vector3.new(66.5, 0.4, 22), Vector3.new(66.5, 12.0, 46), 4.2, GameConfig.TERMINALS.Domestic.accentColor)
 
+	-- Domestic 2nd-floor Mezzanine seating, cover planters & upper-level passenger spots
+	buildLeatherSeatingCluster(opaqueCover, Vector3.new(-34, 12.0, 58), 180, Color3.fromRGB(48, 86, 134), Color3.fromRGB(172, 180, 192))
+	buildLeatherSeatingCluster(opaqueCover, Vector3.new(34, 12.0, 58), 180, Color3.fromRGB(48, 86, 134), Color3.fromRGB(172, 180, 192))
+	buildPlanterBed(opaqueCover, decor, Vector3.new(-22, 12.0, 58), GameConfig.TERMINALS.Domestic.accentColor)
+	buildPlanterBed(opaqueCover, decor, Vector3.new(22, 12.0, 58), GameConfig.TERMINALS.Domestic.accentColor)
+	buildPlanterBed(opaqueCover, decor, Vector3.new(-79, 12.0, -14), GameConfig.TERMINALS.Domestic.accentColor, 3.6, 3.6)
+	buildPlanterBed(opaqueCover, decor, Vector3.new(79, 12.0, -14), GameConfig.TERMINALS.Domestic.accentColor, 3.6, 3.6)
+
 	table.insert(carousels, buildCarousel(decor, opaqueCover, "Claim 1", "Domestic", Vector3.new(-44, 0, -18), 18, 9, 6.2, GameConfig.TERMINALS.Domestic.accentColor))
 	table.insert(carousels, buildCarousel(decor, opaqueCover, "Claim 2", "Domestic", Vector3.new(44, 0, -18), 18, 9, 6.2, GameConfig.TERMINALS.Domestic.accentColor))
 
@@ -1815,6 +1964,9 @@ function WorldBuilder.Build(): WorldRefs
 	table.insert(restingSpots, { id = "DomSpot3", terminalId = "Domestic", bagPos = Vector3.new(-38, 0.4, 41), bagYaw = 0, ownerHomePos = Vector3.new(-48, 0.4, 38), ownerLookAwayYaw = 0, ownerWatchBagYaw = -math.pi * 0.55, patrolWaypoint = Vector3.new(-55, 0.4, 38) })
 	table.insert(restingSpots, { id = "DomSpot4", terminalId = "Domestic", bagPos = Vector3.new(38, 0.4, 41), bagYaw = 0, ownerHomePos = Vector3.new(48, 0.4, 38), ownerLookAwayYaw = 0, ownerWatchBagYaw = math.pi * 0.55, patrolWaypoint = Vector3.new(55, 0.4, 38) })
 	table.insert(restingSpots, { id = "DomSpot5", terminalId = "Domestic", bagPos = Vector3.new(0, 0.4, -14), bagYaw = 0.5, ownerHomePos = Vector3.new(5, 0.4, -4), ownerLookAwayYaw = math.pi, ownerWatchBagYaw = 0.4, patrolWaypoint = Vector3.new(6, 0.4, 6) })
+	table.insert(restingSpots, { id = "DomMezzSpot1", terminalId = "Domestic", bagPos = Vector3.new(-44, 12.0, 56), bagYaw = 0.3, ownerHomePos = Vector3.new(-32, 12.0, 51), ownerLookAwayYaw = math.pi, ownerWatchBagYaw = math.pi * 0.45, patrolWaypoint = Vector3.new(-10, 12.0, 51) })
+	table.insert(restingSpots, { id = "DomMezzSpot2", terminalId = "Domestic", bagPos = Vector3.new(44, 12.0, 56), bagYaw = -0.3, ownerHomePos = Vector3.new(32, 12.0, 51), ownerLookAwayYaw = math.pi, ownerWatchBagYaw = -math.pi * 0.45, patrolWaypoint = Vector3.new(10, 12.0, 51) })
+	table.insert(restingSpots, { id = "DomMezzSpot3", terminalId = "Domestic", bagPos = Vector3.new(-79, 12.0, -34), bagYaw = 0.1, ownerHomePos = Vector3.new(-79, 12.0, -24), ownerLookAwayYaw = -math.pi * 0.5, ownerWatchBagYaw = 0, patrolWaypoint = Vector3.new(-79, 12.0, -2) })
 
 	-- INTERNATIONAL CONCOURSE
 	makePart(opaqueCover, "DutyFreeIsland1", Vector3.new(20, 5.2, 10), CFrame.new(-174, 2.6, 26), Color3.fromRGB(142, 98, 62), Enum.Material.Wood, true)
@@ -1827,19 +1979,21 @@ function WorldBuilder.Build(): WorldRefs
 		opaqueCover,
 		windows,
 		"IntlMezz",
-		-206,
+		-207.2,
 		-104,
 		48,
-		63,
+		64.6,
 		11.5,
 		Color3.fromRGB(198, 184, 158),
 		Color3.fromRGB(68, 214, 152),
-		{ N = true, S = false, W = false, E = true },
+		{ N = true, S = true, W = false, E = true },
 		{
-			{ axis = "Z", minV = -202, maxV = -190, side = "N" },
+			{ axis = "Z", minV = -203, maxV = -189, side = "N" },
 		}
 	)
 	buildDualEscalator(decor, windows, "IntlWest", Vector3.new(-196, 0.4, 25), Vector3.new(-196, 11.5, 48), 4.2, GameConfig.TERMINALS.International.accentColor)
+	buildLeatherSeatingCluster(opaqueCover, Vector3.new(-146, 11.5, 58), 180, Color3.fromRGB(48, 148, 108), Color3.fromRGB(204, 174, 92))
+	buildPlanterBed(opaqueCover, decor, Vector3.new(-134, 11.5, 58), GameConfig.TERMINALS.International.accentColor)
 	makeSignBoard(
 		decor,
 		"DutyFreeSign",
@@ -1873,6 +2027,8 @@ function WorldBuilder.Build(): WorldRefs
 	table.insert(restingSpots, { id = "IntlSpot2", terminalId = "International", bagPos = Vector3.new(-132, 0.4, 24), bagYaw = -0.3, ownerHomePos = Vector3.new(-140, 0.4, 14), ownerLookAwayYaw = math.pi, ownerWatchBagYaw = -0.4, patrolWaypoint = Vector3.new(-126, 0.4, 10) })
 	table.insert(restingSpots, { id = "IntlSpot3", terminalId = "International", bagPos = Vector3.new(-186, 0.4, 4), bagYaw = 1.1, ownerHomePos = Vector3.new(-180, 0.4, -6), ownerLookAwayYaw = -math.pi * 0.5, ownerWatchBagYaw = 0.35, patrolWaypoint = Vector3.new(-174, 0.4, -14) })
 	table.insert(restingSpots, { id = "IntlSpot4", terminalId = "International", bagPos = Vector3.new(-124, 0.4, -44), bagYaw = 0, ownerHomePos = Vector3.new(-136, 0.4, -44), ownerLookAwayYaw = math.pi * 0.5, ownerWatchBagYaw = -math.pi * 0.5, patrolWaypoint = Vector3.new(-152, 0.4, -44) })
+	table.insert(restingSpots, { id = "IntlMezzSpot1", terminalId = "International", bagPos = Vector3.new(-168, 11.5, 56), bagYaw = 0.25, ownerHomePos = Vector3.new(-156, 11.5, 52), ownerLookAwayYaw = math.pi, ownerWatchBagYaw = math.pi * 0.45, patrolWaypoint = Vector3.new(-138, 11.5, 52) })
+	table.insert(restingSpots, { id = "IntlMezzSpot2", terminalId = "International", bagPos = Vector3.new(-114, 11.5, 56), bagYaw = -0.2, ownerHomePos = Vector3.new(-122, 11.5, 52), ownerLookAwayYaw = math.pi, ownerWatchBagYaw = -math.pi * 0.45, patrolWaypoint = Vector3.new(-144, 11.5, 51) })
 
 	-- FIRST-CLASS VIP LOUNGE
 	makePart(opaqueCover, "VipBarCounter", Vector3.new(22, 4.2, 6), CFrame.new(172, 2.1, 28), Color3.fromRGB(36, 28, 42), Enum.Material.Marble, true)
@@ -1888,18 +2044,20 @@ function WorldBuilder.Build(): WorldRefs
 		windows,
 		"VipSkyLoft",
 		104,
-		206,
+		207.2,
 		46,
-		63,
+		64.6,
 		11.5,
 		Color3.fromRGB(58, 64, 96),
 		Color3.fromRGB(255, 194, 64),
-		{ N = true, S = false, W = true, E = false },
+		{ N = true, S = true, W = true, E = false },
 		{
-			{ axis = "Z", minV = 190, maxV = 202, side = "N" },
+			{ axis = "Z", minV = 189, maxV = 203, side = "N" },
 		}
 	)
 	buildDualEscalator(decor, windows, "VipEast", Vector3.new(196, 0.4, 23), Vector3.new(196, 11.5, 46), 4.2, GameConfig.TERMINALS.FirstClass.accentColor)
+	buildLeatherSeatingCluster(opaqueCover, Vector3.new(146, 11.5, 57), 180, Color3.fromRGB(168, 128, 48), Color3.fromRGB(234, 194, 86))
+	buildPlanterBed(opaqueCover, decor, Vector3.new(134, 11.5, 57), GameConfig.TERMINALS.FirstClass.accentColor)
 
 	for _, pPos in ipairs({ Vector3.new(112, 0, -40), Vector3.new(186, 0, -40), Vector3.new(114, 0, 40) }) do
 		buildPillar(opaqueCover, decor, "VipPillar", pPos, 1.8, AIRPORT_ROOF_Y, Color3.fromRGB(58, 64, 92), GameConfig.TERMINALS.FirstClass.accentColor)
@@ -1920,6 +2078,8 @@ function WorldBuilder.Build(): WorldRefs
 	table.insert(restingSpots, { id = "VipSpot2", terminalId = "FirstClass", bagPos = Vector3.new(164, 0.4, 38), bagYaw = -0.3, ownerHomePos = Vector3.new(176, 0.4, 38), ownerLookAwayYaw = 0, ownerWatchBagYaw = math.pi * 0.5, patrolWaypoint = Vector3.new(186, 0.4, 34) })
 	table.insert(restingSpots, { id = "VipSpot3", terminalId = "FirstClass", bagPos = Vector3.new(116, 0.4, -2), bagYaw = 0.8, ownerHomePos = Vector3.new(106, 0.4, 8), ownerLookAwayYaw = math.pi * 0.75, ownerWatchBagYaw = -math.pi * 0.75, patrolWaypoint = Vector3.new(106, 0.4, -18) })
 	table.insert(restingSpots, { id = "VipSpot4", terminalId = "FirstClass", bagPos = Vector3.new(162, 0.4, -48), bagYaw = 0.1, ownerHomePos = Vector3.new(174, 0.4, -46), ownerLookAwayYaw = 0, ownerWatchBagYaw = math.pi * 0.5, patrolWaypoint = Vector3.new(184, 0.4, -34) })
+	table.insert(restingSpots, { id = "VipMezzSpot1", terminalId = "FirstClass", bagPos = Vector3.new(168, 11.5, 55), bagYaw = -0.25, ownerHomePos = Vector3.new(156, 11.5, 51), ownerLookAwayYaw = math.pi, ownerWatchBagYaw = -math.pi * 0.45, patrolWaypoint = Vector3.new(138, 11.5, 51) })
+	table.insert(restingSpots, { id = "VipMezzSpot2", terminalId = "FirstClass", bagPos = Vector3.new(114, 11.5, 55), bagYaw = 0.2, ownerHomePos = Vector3.new(122, 11.5, 51), ownerLookAwayYaw = math.pi, ownerWatchBagYaw = math.pi * 0.45, patrolWaypoint = Vector3.new(144, 11.5, 50) })
 
 	-- CELEBRITY PRIVATE TERMINAL
 	makePart(decor, "CelebBoardHangerL", Vector3.new(0.45, AIRPORT_ROOF_Y - 12, 0.45), CFrame.new(-10, 12 + (AIRPORT_ROOF_Y - 12) * 0.5, -186), Color3.fromRGB(168, 176, 188), Enum.Material.Metal, false)
@@ -1963,17 +2123,17 @@ function WorldBuilder.Build(): WorldRefs
 		opaqueCover,
 		windows,
 		"CelebSouthTerrace",
-		-114,
-		114,
+		-115,
+		115,
 		-80,
-		-61,
+		-59,
 		11.5,
 		Color3.fromRGB(48, 36, 56),
 		Color3.fromRGB(255, 86, 152),
-		{ N = true, S = false, W = false, E = false },
+		{ N = true, S = true, W = false, E = false },
 		{
-			{ axis = "Z", minV = -114, maxV = -86, side = "N" },
-			{ axis = "Z", minV = 86, maxV = 114, side = "N" },
+			{ axis = "Z", minV = -115, maxV = -85, side = "N" },
+			{ axis = "Z", minV = 85, maxV = 115, side = "N" },
 		}
 	)
 	buildMezzanineDeck(
@@ -1981,9 +2141,9 @@ function WorldBuilder.Build(): WorldRefs
 		opaqueCover,
 		windows,
 		"CelebJetWalkW",
-		-114,
+		-115,
 		-100,
-		-188,
+		-193,
 		-80,
 		11.5,
 		Color3.fromRGB(48, 36, 56),
@@ -1997,8 +2157,8 @@ function WorldBuilder.Build(): WorldRefs
 		windows,
 		"CelebJetWalkE",
 		100,
-		114,
-		-188,
+		115,
+		-193,
 		-80,
 		11.5,
 		Color3.fromRGB(48, 36, 56),
@@ -2009,12 +2169,22 @@ function WorldBuilder.Build(): WorldRefs
 	buildDualEscalator(decor, windows, "CelebWest", Vector3.new(-92, 0.4, -104), Vector3.new(-92, 11.5, -80), 4.0, GameConfig.TERMINALS.Celebrity.accentColor)
 	buildDualEscalator(decor, windows, "CelebEast", Vector3.new(92, 0.4, -104), Vector3.new(92, 11.5, -80), 4.0, GameConfig.TERMINALS.Celebrity.accentColor)
 
+	-- Celebrity 2nd-floor terrace lounge seating, cover planters & upper-level VIP spots
+	buildLeatherSeatingCluster(opaqueCover, Vector3.new(-38, 11.5, -67), 0, Color3.fromRGB(182, 42, 112), Color3.fromRGB(238, 198, 76))
+	buildLeatherSeatingCluster(opaqueCover, Vector3.new(38, 11.5, -67), 0, Color3.fromRGB(182, 42, 112), Color3.fromRGB(238, 198, 76))
+	buildPlanterBed(opaqueCover, decor, Vector3.new(-20, 11.5, -69), GameConfig.TERMINALS.Celebrity.accentColor)
+	buildPlanterBed(opaqueCover, decor, Vector3.new(20, 11.5, -69), GameConfig.TERMINALS.Celebrity.accentColor)
+	buildPlanterBed(opaqueCover, decor, Vector3.new(-107, 11.5, -136), GameConfig.TERMINALS.Celebrity.accentColor, 3.6, 3.6)
+	buildPlanterBed(opaqueCover, decor, Vector3.new(107, 11.5, -136), GameConfig.TERMINALS.Celebrity.accentColor, 3.6, 3.6)
+
 	table.insert(carousels, buildCarousel(decor, opaqueCover, "Royal Valet", "Celebrity", Vector3.new(0, 0, -126), 24, 11, 8.6, GameConfig.TERMINALS.Celebrity.accentColor))
 
 	table.insert(restingSpots, { id = "CelebSpot1", terminalId = "Celebrity", bagPos = Vector3.new(-54, 0.4, -108), bagYaw = 0.2, ownerHomePos = Vector3.new(-44, 0.4, -108), ownerLookAwayYaw = 0, ownerWatchBagYaw = math.pi * 0.5, patrolWaypoint = Vector3.new(-44, 0.4, -128) })
 	table.insert(restingSpots, { id = "CelebSpot2", terminalId = "Celebrity", bagPos = Vector3.new(54, 0.4, -108), bagYaw = -0.2, ownerHomePos = Vector3.new(44, 0.4, -108), ownerLookAwayYaw = 0, ownerWatchBagYaw = -math.pi * 0.5, patrolWaypoint = Vector3.new(44, 0.4, -128) })
 	table.insert(restingSpots, { id = "CelebSpot3", terminalId = "Celebrity", bagPos = Vector3.new(-74, 0.4, -158), bagYaw = 0.4, ownerHomePos = Vector3.new(-62, 0.4, -160), ownerLookAwayYaw = math.pi, ownerWatchBagYaw = math.pi * 0.5, patrolWaypoint = Vector3.new(-50, 0.4, -162) })
 	table.insert(restingSpots, { id = "CelebSpot4", terminalId = "Celebrity", bagPos = Vector3.new(74, 0.4, -158), bagYaw = -0.4, ownerHomePos = Vector3.new(62, 0.4, -160), ownerLookAwayYaw = math.pi, ownerWatchBagYaw = -math.pi * 0.5, patrolWaypoint = Vector3.new(50, 0.4, -162) })
+	table.insert(restingSpots, { id = "CelebMezzSpot1", terminalId = "Celebrity", bagPos = Vector3.new(-58, 11.5, -69), bagYaw = 0.2, ownerHomePos = Vector3.new(-46, 11.5, -69), ownerLookAwayYaw = 0, ownerWatchBagYaw = math.pi * 0.5, patrolWaypoint = Vector3.new(-26, 11.5, -72) })
+	table.insert(restingSpots, { id = "CelebMezzSpot2", terminalId = "Celebrity", bagPos = Vector3.new(58, 11.5, -69), bagYaw = -0.2, ownerHomePos = Vector3.new(46, 11.5, -69), ownerLookAwayYaw = 0, ownerWatchBagYaw = -math.pi * 0.5, patrolWaypoint = Vector3.new(26, 11.5, -72) })
 
 	-----------------------------------------------------------------------
 	-- 6. SECURITY PATROL ROUTES

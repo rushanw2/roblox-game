@@ -190,8 +190,9 @@ local function isPointInVisionCone(
 		end
 	end
 
-	local eyeOrigin = Vector3.new(npcPos.X, 4.4, npcPos.Z)
-	local targetMid = Vector3.new(targetPos.X, 2.8, targetPos.Z)
+	local eyeOrigin = Vector3.new(npcPos.X, npcPos.Y + 4.0, npcPos.Z)
+	local targetMidY = math.max(targetPos.Y, npcPos.Y + 2.4)
+	local targetMid = Vector3.new(targetPos.X, targetMidY, targetPos.Z)
 	local rayResult = Workspace:Raycast(eyeOrigin, targetMid - eyeOrigin, rayParams)
 	if rayResult ~= nil then
 		return false
@@ -418,7 +419,8 @@ function StealthManager.AttemptSteal(player: Player, bagId: string)
 	end
 
 	local distToBag = (Vector3.new(hrp.Position.X, 0, hrp.Position.Z) - Vector3.new(bagRec.position.X, 0, bagRec.position.Z)).Magnitude
-	if distToBag > GameConfig.STEAL_RANGE + 4 then
+	local heightDiff = math.abs(hrp.Position.Y - (bagRec.position.Y + 2.5))
+	if distToBag > GameConfig.STEAL_RANGE + 4 or heightDiff > 6.5 then
 		sendToast(player, "Move closer to snatch that luggage!", "warning")
 		return
 	end
@@ -1029,7 +1031,7 @@ local function updatePassengerBehavior(dt: number, now: number)
 		end
 
 		npc.currentYaw = lerpAngle(npc.currentYaw, npc.targetYaw, dt * 5.2)
-		npc.model:PivotTo(CFrame.new(npc.currentPos.X, 3.0, npc.currentPos.Z) * CFrame.Angles(0, npc.currentYaw, 0))
+		npc.model:PivotTo(CFrame.new(npc.currentPos.X, npc.currentPos.Y + 3.0, npc.currentPos.Z) * CFrame.Angles(0, npc.currentYaw, 0))
 	end
 end
 
@@ -1079,7 +1081,7 @@ local function updateSecurityGuards(dt: number, now: number)
 		end
 
 		guard.currentYaw = lerpAngle(guard.currentYaw, targetYaw, dt * 6.5)
-		guard.model:PivotTo(CFrame.new(guard.currentPos.X, 3.0, guard.currentPos.Z) * CFrame.Angles(0, guard.currentYaw, 0))
+		guard.model:PivotTo(CFrame.new(guard.currentPos.X, guard.currentPos.Y + 3.0, guard.currentPos.Z) * CFrame.Angles(0, guard.currentYaw, 0))
 	end
 end
 

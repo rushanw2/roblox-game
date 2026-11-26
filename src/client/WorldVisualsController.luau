@@ -194,8 +194,8 @@ local function updateWorkbenchVisuals(dt: number)
 				end
 				local arch = GameConfig.GetArchetype(archId)
 				if arch and deskTop then
-					local originCF = CFrame.new(deskTop.Position.X, deskTop.Position.Y + deskTop.Size.Y * 0.5, deskTop.Position.Z)
-						* CFrame.Angles(0, math.pi, 0)
+					local topPos = Vector3.new(deskTop.Position.X, deskTop.Position.Y + deskTop.Size.Y * 0.5, deskTop.Position.Z)
+					local originCF = CFrame.new(topPos) * deskTop.CFrame.Rotation * CFrame.Angles(0, math.pi, 0)
 					local bagModel = LuggageVisuals.BuildModel(arch, originCF, {
 						scale = 0.92,
 						anchored = true,

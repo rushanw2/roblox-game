@@ -129,7 +129,8 @@ local function renderCone(
 	local rightBaseRot = CFrame.Angles(0, math.pi, 0) * CFrame.Angles(0, 0, math.pi * 0.5)
 	local leftBaseRot = CFrame.Angles(0, math.pi, 0) * CFrame.Angles(0, 0, -math.pi * 0.5)
 
-	local eyeOrigin = Vector3.new(originPos.X, 4.2, originPos.Z)
+	local eyeOrigin = Vector3.new(originPos.X, originPos.Y + 1.4, originPos.Z)
+	local floorY = math.max(FLOOR_Y, originPos.Y - 2.94)
 
 	for i = 1, SLICE_COUNT do
 		local pair = slot.slices[i]
@@ -144,7 +145,7 @@ local function renderCone(
 
 		local sz = clippedRange * cosHalf
 		local sy = clippedRange * sinHalf
-		local sliceOrigin = CFrame.new(originPos.X, FLOOR_Y, originPos.Z) * CFrame.Angles(0, sliceCenterAngle, 0)
+		local sliceOrigin = CFrame.new(originPos.X, floorY, originPos.Z) * CFrame.Angles(0, sliceCenterAngle, 0)
 
 		pair.right.Size = Vector3.new(CONE_THICKNESS, sy, sz)
 		pair.right.Color = color
