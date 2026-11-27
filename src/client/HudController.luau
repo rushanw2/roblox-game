@@ -38,6 +38,7 @@ local toastContainer: Frame
 local bustFlashFrame: Frame
 
 local activeModal: string? = nil
+local screenDimmer: Frame
 local modalBackdrop: Frame
 local modalTitle: TextLabel
 local modalScroll: ScrollingFrame
@@ -69,7 +70,8 @@ local function makeLabel(
 	pos: UDim2,
 	font: Enum.Font,
 	color: Color3,
-	align: Enum.TextXAlignment?
+	align: Enum.TextXAlignment?,
+	zIndex: number?
 ): TextLabel
 	local lbl = Instance.new("TextLabel")
 	lbl.Size = size
@@ -80,6 +82,7 @@ local function makeLabel(
 	lbl.TextColor3 = color
 	lbl.TextScaled = true
 	lbl.TextXAlignment = align or Enum.TextXAlignment.Left
+	lbl.ZIndex = zIndex or (if parent:IsA("GuiObject") then parent.ZIndex + 1 else 2)
 	lbl.Parent = parent
 	return lbl
 end
@@ -91,7 +94,8 @@ local function makeButton(
 	pos: UDim2,
 	bgColor: Color3,
 	textColor: Color3,
-	cornerRadius: number?
+	cornerRadius: number?,
+	zIndex: number?
 ): TextButton
 	local btn = Instance.new("TextButton")
 	btn.Size = size
@@ -103,12 +107,13 @@ local function makeButton(
 	btn.Text = text
 	btn.TextColor3 = textColor
 	btn.TextScaled = true
+	btn.ZIndex = zIndex or (if parent:IsA("GuiObject") then parent.ZIndex + 1 else 2)
 	btn.Parent = parent
 	addCorner(btn, cornerRadius or 10)
 	return btn
 end
 
-local function clearModalContents()
+local function clearModalContents(): ()
 	table.clear(modalBenchLabels)
 	for _, child in ipairs(modalScroll:GetChildren()) do
 		if not child:IsA("UIListLayout") and not child:IsA("UIPadding") then
@@ -120,16 +125,18 @@ local function clearModalContents()
 	end
 end
 
-local function setModalOpen(modalName: string?)
+local function setModalOpen(modalName: string?): ()
 	if modalName ~= nil and activeModal == modalName then
 		activeModal = nil
 	else
 		activeModal = modalName
 	end
-	modalBackdrop.Visible = activeModal ~= nil
+	local isOpen = activeModal ~= nil
+	screenDimmer.Visible = isOpen
+	modalBackdrop.Visible = isOpen
 end
 
-local function pushToast(message: string, tone: string, extra: { [string]: any }?)
+local function pushToast(message: string, tone: string, extra: { [string]: any }?): ()
 	local accent = if tone == "success"
 		then Color3.fromRGB(68, 232, 146)
 		elseif tone == "warning" then Color3.fromRGB(255, 196, 58)
@@ -143,27 +150,39 @@ local function pushToast(message: string, tone: string, extra: { [string]: any }
 		}):Play()
 	end
 
+	-- Keep at most 3 stacked toasts so notifications stay compact
+	local existingCards = {}
+	for _, child in ipairs(toastContainer:GetChildren()) do
+		if child:IsA("Frame") then
+			table.insert(existingCards, child)
+		end
+	end
+	if #existingCards >= 3 then
+		existingCards[1]:Destroy()
+	end
+
 	local card = Instance.new("Frame")
-	card.Size = UDim2.new(1, 0, 0, 44)
+	card.Size = UDim2.new(1, 0, 0, 34)
 	card.BackgroundColor3 = Color3.fromRGB(16, 20, 30)
 	card.BackgroundTransparency = 0.08
 	card.BorderSizePixel = 0
+	card.ZIndex = 30
 	card.Parent = toastContainer
-	addCorner(card, 10)
-	addStroke(card, accent, 2, 0.15)
+	addCorner(card, 9)
+	addStroke(card, accent, 1.5, 0.12)
 
 	local pad = Instance.new("UIPadding")
-	pad.PaddingLeft = UDim.new(0, 12)
-	pad.PaddingRight = UDim.new(0, 12)
+	pad.PaddingLeft = UDim.new(0, 10)
+	pad.PaddingRight = UDim.new(0, 10)
 	pad.Parent = card
 
-	local lbl = makeLabel(card, message, UDim2.fromScale(1, 0.8), UDim2.fromScale(0, 0.1), Enum.Font.GothamBold, Color3.fromRGB(244, 248, 255), Enum.TextXAlignment.Center)
-	lbl.TextWrapped = true
+	local lbl = makeLabel(card, message, UDim2.fromScale(1, 0.76), UDim2.fromScale(0, 0.12), Enum.Font.GothamBold, Color3.fromRGB(244, 248, 255), Enum.TextXAlignment.Center, 31)
+	lbl.TextWrapped = false
 
-	task.delay(3.8, function()
+	task.delay(2.6, function()
 		if card and card.Parent then
-			local fade = TweenService:Create(card, TweenInfo.new(0.28), { BackgroundTransparency = 1 })
-			TweenService:Create(lbl, TweenInfo.new(0.28), { TextTransparency = 1 }):Play()
+			local fade = TweenService:Create(card, TweenInfo.new(0.25), { BackgroundTransparency = 1 })
+			TweenService:Create(lbl, TweenInfo.new(0.25), { TextTransparency = 1 }):Play()
 			fade:Play()
 			fade.Completed:Connect(function()
 				if card then
@@ -174,16 +193,17 @@ local function pushToast(message: string, tone: string, extra: { [string]: any }
 	end)
 end
 
-local function makeSectionHeader(text: string, color: Color3, order: number)
+local function makeSectionHeader(text: string, color: Color3, order: number): ()
 	local hdr = Instance.new("TextLabel")
 	hdr.LayoutOrder = order
-	hdr.Size = UDim2.new(1, 0, 0, 28)
+	hdr.Size = UDim2.new(1, 0, 0, 26)
 	hdr.BackgroundTransparency = 1
 	hdr.Font = Enum.Font.GothamBlack
 	hdr.Text = text
 	hdr.TextColor3 = color
 	hdr.TextScaled = true
 	hdr.TextXAlignment = Enum.TextXAlignment.Left
+	hdr.ZIndex = 22
 	hdr.Parent = modalScroll
 end
 
@@ -191,15 +211,16 @@ local function makeCardRow(order: number, heightPx: number, strokeColor: Color3)
 	local card = Instance.new("Frame")
 	card.LayoutOrder = order
 	card.Size = UDim2.new(1, 0, 0, heightPx)
-	card.BackgroundColor3 = Color3.fromRGB(24, 30, 44)
+	card.BackgroundColor3 = Color3.fromRGB(28, 36, 52)
 	card.BorderSizePixel = 0
+	card.ZIndex = 22
 	card.Parent = modalScroll
 	addCorner(card, 10)
-	addStroke(card, strokeColor, 1.5, 0.25)
+	addStroke(card, strokeColor, 1.5, 0.18)
 	return card
 end
 
-local function renderBackpackModal(snap: ClientState.ClientSnapshot)
+local function renderBackpackModal(snap: ClientState.ClientSnapshot): ()
 	modalTitle.Text = "STASH, WORKBENCHES & LOOT"
 	clearModalContents()
 	local order = 1
@@ -327,7 +348,7 @@ local function renderBackpackModal(snap: ClientState.ClientSnapshot)
 	end
 end
 
-local function renderShopModal(snap: ClientState.ClientSnapshot)
+local function renderShopModal(snap: ClientState.ClientSnapshot): ()
 	modalTitle.Text = "BLACK-MARKET GEAR & UPGRADES"
 	clearModalContents()
 	local order = 1
@@ -435,7 +456,7 @@ local function renderShopModal(snap: ClientState.ClientSnapshot)
 	end
 end
 
-local function renderTerminalsModal(snap: ClientState.ClientSnapshot)
+local function renderTerminalsModal(snap: ClientState.ClientSnapshot): ()
 	modalTitle.Text = "SKYPORT TERMINAL PASSES"
 	clearModalContents()
 	local order = 1
@@ -471,7 +492,7 @@ local function renderTerminalsModal(snap: ClientState.ClientSnapshot)
 	end
 end
 
-local function refreshActiveModal()
+local function refreshActiveModal(): ()
 	local snap = ClientState.GetSnapshot()
 	if not snap or not activeModal then
 		return
@@ -485,7 +506,7 @@ local function refreshActiveModal()
 	end
 end
 
-local function updateHudFromSnapshot(snap: ClientState.ClientSnapshot)
+local function updateHudFromSnapshot(snap: ClientState.ClientSnapshot): ()
 	cashValueLabel.Text = GameConfig.FormatCash(snap.Cash)
 	stolenValueLabel.Text = tostring(snap.TotalStolen)
 
@@ -501,7 +522,7 @@ local function updateHudFromSnapshot(snap: ClientState.ClientSnapshot)
 
 	if snap.CarriedLuggage then
 		hotBagBanner.Visible = true
-		hotBagText.Text = string.format("HOT BAG: [%s] %s — ESCAPE TO HIDEOUT!", snap.CarriedLuggage.tier, snap.CarriedLuggage.displayName)
+		hotBagText.Text = string.format("HOT BAG: %s — ESCAPE!", snap.CarriedLuggage.tier:upper())
 	else
 		hotBagBanner.Visible = false
 	end
@@ -514,7 +535,7 @@ local function updateHudFromSnapshot(snap: ClientState.ClientSnapshot)
 	refreshActiveModal()
 end
 
-local function buildGui()
+local function buildGui(): ()
 	local playerGui = Players.LocalPlayer:WaitForChild("PlayerGui")
 	local existing = playerGui:FindFirstChild("StealALuggageHUD")
 	if existing then
@@ -525,6 +546,7 @@ local function buildGui()
 	gui.Name = "StealALuggageHUD"
 	gui.ResetOnSpawn = false
 	gui.IgnoreGuiInset = true
+	gui.ZIndexBehavior = Enum.ZIndexBehavior.Sibling
 	gui.Parent = playerGui
 
 	-- Bust red screen flash overlay
@@ -541,6 +563,7 @@ local function buildGui()
 	statsRow.Size = UDim2.fromOffset(330, 56)
 	statsRow.Position = UDim2.fromOffset(18, 16)
 	statsRow.BackgroundTransparency = 1
+	statsRow.ZIndex = 2
 	statsRow.Parent = gui
 
 	local cashCard = Instance.new("Frame")
@@ -548,6 +571,7 @@ local function buildGui()
 	cashCard.BackgroundColor3 = Color3.fromRGB(16, 22, 34)
 	cashCard.BackgroundTransparency = 0.12
 	cashCard.BorderSizePixel = 0
+	cashCard.ZIndex = 2
 	cashCard.Parent = statsRow
 	addCorner(cashCard, 12)
 	addStroke(cashCard, Color3.fromRGB(68, 224, 146), 2, 0.2)
@@ -560,6 +584,7 @@ local function buildGui()
 	stolenCard.BackgroundColor3 = Color3.fromRGB(16, 22, 34)
 	stolenCard.BackgroundTransparency = 0.12
 	stolenCard.BorderSizePixel = 0
+	stolenCard.ZIndex = 2
 	stolenCard.Parent = statsRow
 	addCorner(stolenCard, 12)
 	addStroke(stolenCard, Color3.fromRGB(82, 198, 255), 2, 0.2)
@@ -572,6 +597,7 @@ local function buildGui()
 	zonePill.BackgroundColor3 = Color3.fromRGB(16, 22, 34)
 	zonePill.BackgroundTransparency = 0.2
 	zonePill.BorderSizePixel = 0
+	zonePill.ZIndex = 2
 	zonePill.Parent = gui
 	addCorner(zonePill, 8)
 	zoneBadgeLabel = makeLabel(zonePill, "Courtyard", UDim2.new(1, -16, 1, -4), UDim2.fromOffset(8, 2), Enum.Font.GothamBold, Color3.fromRGB(214, 226, 245))
@@ -583,6 +609,7 @@ local function buildGui()
 	stealthCard.BackgroundColor3 = Color3.fromRGB(16, 20, 32)
 	stealthCard.BackgroundTransparency = 0.1
 	stealthCard.BorderSizePixel = 0
+	stealthCard.ZIndex = 2
 	stealthCard.Parent = gui
 	addCorner(stealthCard, 14)
 	addStroke(stealthCard, Color3.fromRGB(82, 128, 168), 2, 0.25)
@@ -592,6 +619,7 @@ local function buildGui()
 	stealthEyeFrame.Position = UDim2.fromOffset(12, 10)
 	stealthEyeFrame.BackgroundColor3 = Color3.fromRGB(48, 208, 142)
 	stealthEyeFrame.BorderSizePixel = 0
+	stealthEyeFrame.ZIndex = 3
 	stealthEyeFrame.Parent = stealthCard
 	addCorner(stealthEyeFrame, 12)
 
@@ -600,16 +628,18 @@ local function buildGui()
 	stealthEyeCore.Position = UDim2.fromOffset(12, 5)
 	stealthEyeCore.BackgroundColor3 = Color3.fromRGB(14, 20, 28)
 	stealthEyeCore.BorderSizePixel = 0
+	stealthEyeCore.ZIndex = 4
 	stealthEyeCore.Parent = stealthEyeFrame
 	addCorner(stealthEyeCore, 7)
 
-	stealthStatusLabel = makeLabel(stealthCard, "HIDDEN", UDim2.fromOffset(216, 22), UDim2.fromOffset(60, 8), Enum.Font.GothamBlack, Color3.fromRGB(86, 242, 164))
+	stealthStatusLabel = makeLabel(stealthCard, "HIDDEN", UDim2.fromOffset(216, 22), UDim2.fromOffset(60, 8), Enum.Font.GothamBlack, Color3.fromRGB(86, 242, 164), nil, 3)
 
 	local barBg = Instance.new("Frame")
 	barBg.Size = UDim2.fromOffset(266, 10)
 	barBg.Position = UDim2.fromOffset(12, 38)
 	barBg.BackgroundColor3 = Color3.fromRGB(36, 44, 62)
 	barBg.BorderSizePixel = 0
+	barBg.ZIndex = 3
 	barBg.Parent = stealthCard
 	addCorner(barBg, 5)
 
@@ -617,28 +647,31 @@ local function buildGui()
 	suspicionFill.Size = UDim2.fromScale(0, 1)
 	suspicionFill.BackgroundColor3 = Color3.fromRGB(72, 232, 148)
 	suspicionFill.BorderSizePixel = 0
+	suspicionFill.ZIndex = 4
 	suspicionFill.Parent = barBg
 	addCorner(suspicionFill, 5)
 
 	-- HOT BAG ESCAPE BANNER
 	hotBagBanner = Instance.new("Frame")
-	hotBagBanner.Size = UDim2.fromOffset(420, 32)
-	hotBagBanner.Position = UDim2.new(0.5, -210, 0, 78)
+	hotBagBanner.Size = UDim2.fromOffset(300, 28)
+	hotBagBanner.Position = UDim2.new(0.5, -150, 0, 78)
 	hotBagBanner.BackgroundColor3 = Color3.fromRGB(198, 48, 42)
 	hotBagBanner.Visible = false
 	hotBagBanner.BorderSizePixel = 0
+	hotBagBanner.ZIndex = 3
 	hotBagBanner.Parent = gui
-	addCorner(hotBagBanner, 9)
-	hotBagText = makeLabel(hotBagBanner, "HOT BAG!", UDim2.new(1, -16, 1, -4), UDim2.fromOffset(8, 2), Enum.Font.GothamBlack, Color3.fromRGB(255, 248, 238), Enum.TextXAlignment.Center)
+	addCorner(hotBagBanner, 8)
+	hotBagText = makeLabel(hotBagBanner, "HOT BAG!", UDim2.new(1, -16, 1, -4), UDim2.fromOffset(8, 2), Enum.Font.GothamBlack, Color3.fromRGB(255, 248, 238), Enum.TextXAlignment.Center, 4)
 
-	-- TOAST STACK
+	-- COMPACT TOAST STACK
 	toastContainer = Instance.new("Frame")
-	toastContainer.Size = UDim2.fromOffset(460, 210)
-	toastContainer.Position = UDim2.new(0.5, -230, 0, 118)
+	toastContainer.Size = UDim2.fromOffset(290, 130)
+	toastContainer.Position = UDim2.new(0.5, -145, 0, 112)
 	toastContainer.BackgroundTransparency = 1
+	toastContainer.ZIndex = 30
 	toastContainer.Parent = gui
 	local toastList = Instance.new("UIListLayout")
-	toastList.Padding = UDim.new(0, 6)
+	toastList.Padding = UDim.new(0, 5)
 	toastList.HorizontalAlignment = Enum.HorizontalAlignment.Center
 	toastList.Parent = toastContainer
 
@@ -649,6 +682,7 @@ local function buildGui()
 	dock.BackgroundColor3 = Color3.fromRGB(14, 18, 28)
 	dock.BackgroundTransparency = 0.14
 	dock.BorderSizePixel = 0
+	dock.ZIndex = 3
 	dock.Parent = gui
 	addCorner(dock, 14)
 	addStroke(dock, Color3.fromRGB(68, 84, 112), 2, 0.25)
@@ -683,6 +717,7 @@ local function buildGui()
 	backpackBadge.Text = "0"
 	backpackBadge.TextColor3 = Color3.fromRGB(255, 255, 255)
 	backpackBadge.TextScaled = true
+	backpackBadge.ZIndex = 6
 	backpackBadge.Visible = false
 	backpackBadge.Parent = bagBtn
 	addCorner(backpackBadge, 11)
@@ -699,21 +734,32 @@ local function buildGui()
 		refreshActiveModal()
 	end)
 
-	-- CENTER MODAL BACKDROP
+	-- SCREEN DIMMER (ZIndex 10 sits strictly behind modal window & cards at ZIndex 20+)
+	screenDimmer = Instance.new("Frame")
+	screenDimmer.Size = UDim2.fromScale(1, 1)
+	screenDimmer.BackgroundColor3 = Color3.fromRGB(6, 10, 18)
+	screenDimmer.BackgroundTransparency = 0.48
+	screenDimmer.Visible = false
+	screenDimmer.Active = false
+	screenDimmer.ZIndex = 10
+	screenDimmer.BorderSizePixel = 0
+	screenDimmer.Parent = gui
+
+	-- CENTER MODAL CONTAINER (ZIndex 20+, crisp bright contrast)
 	modalBackdrop = Instance.new("Frame")
 	modalBackdrop.Size = UDim2.fromOffset(580, 440)
 	modalBackdrop.Position = UDim2.new(0.5, -290, 0.5, -220)
-	modalBackdrop.BackgroundColor3 = Color3.fromRGB(14, 18, 28)
-	modalBackdrop.BackgroundTransparency = 0.04
+	modalBackdrop.BackgroundColor3 = Color3.fromRGB(20, 26, 40)
+	modalBackdrop.BackgroundTransparency = 0.02
 	modalBackdrop.Visible = false
-	modalBackdrop.ZIndex = 10
+	modalBackdrop.ZIndex = 20
 	modalBackdrop.BorderSizePixel = 0
 	modalBackdrop.Parent = gui
 	addCorner(modalBackdrop, 16)
-	addStroke(modalBackdrop, Color3.fromRGB(82, 198, 255), 2, 0.15)
+	addStroke(modalBackdrop, Color3.fromRGB(82, 198, 255), 2, 0.1)
 
-	modalTitle = makeLabel(modalBackdrop, "MENU", UDim2.new(1, -76, 0, 32), UDim2.fromOffset(18, 12), Enum.Font.GothamBlack, Color3.fromRGB(245, 248, 255))
-	local closeBtn = makeButton(modalBackdrop, "X", UDim2.fromOffset(36, 36), UDim2.new(1, -48, 0, 10), Color3.fromRGB(186, 52, 62), Color3.fromRGB(255, 255, 255), 9)
+	modalTitle = makeLabel(modalBackdrop, "MENU", UDim2.new(1, -76, 0, 32), UDim2.fromOffset(18, 12), Enum.Font.GothamBlack, Color3.fromRGB(245, 248, 255), nil, 21)
+	local closeBtn = makeButton(modalBackdrop, "X", UDim2.fromOffset(36, 36), UDim2.new(1, -48, 0, 10), Color3.fromRGB(186, 52, 62), Color3.fromRGB(255, 255, 255), 9, 21)
 	closeBtn.Activated:Connect(function()
 		setModalOpen(nil)
 	end)
@@ -726,6 +772,7 @@ local function buildGui()
 	modalScroll.CanvasSize = UDim2.fromOffset(0, 0)
 	modalScroll.AutomaticCanvasSize = Enum.AutomaticSize.Y
 	modalScroll.ScrollBarThickness = 6
+	modalScroll.ZIndex = 21
 	modalScroll.Parent = modalBackdrop
 
 	local scrollLayout = Instance.new("UIListLayout")
@@ -741,10 +788,11 @@ local function buildGui()
 	modalFooter.Size = UDim2.new(1, -28, 0, 44)
 	modalFooter.Position = UDim2.new(0, 14, 1, -54)
 	modalFooter.BackgroundTransparency = 1
+	modalFooter.ZIndex = 21
 	modalFooter.Parent = modalBackdrop
 end
 
-function HudController.Start()
+function HudController.Start(): ()
 	buildGui()
 
 	ClientState.OnStateChanged(updateHudFromSnapshot)

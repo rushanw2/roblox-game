@@ -201,7 +201,7 @@ local function isPointInVisionCone(
 	return true
 end
 
-local function setNpcAlertVisual(model: Model, alertState: AlertState)
+local function setNpcAlertVisual(model: Model, alertState: AlertState): ()
 	model:SetAttribute("AlertState", alertState)
 	local head = model:FindFirstChild("Head")
 	if not head then
@@ -268,7 +268,7 @@ local function getOrCreatePlayerState(player: Player): PlayerStealthState
 	return state
 end
 
-local function sendToast(player: Player, message: string, tone: string?, extra: { [string]: any }?)
+local function sendToast(player: Player, message: string, tone: string?, extra: { [string]: any }?): ()
 	local snapshot = DataManager.BuildClientSnapshot(player)
 	remotes.SyncPlayerState:FireClient(player, {
 		kind = "StateAndAlert",
@@ -279,7 +279,7 @@ local function sendToast(player: Player, message: string, tone: string?, extra: 
 	})
 end
 
-local function applyPlayerMovementSpeed(player: Player)
+local function applyPlayerMovementSpeed(player: Player): ()
 	local character = player.Character
 	if not character then
 		return
@@ -303,7 +303,7 @@ local function applyPlayerMovementSpeed(player: Player)
 	humanoid.WalkSpeed = if state.isCrouching then sneakerDef.crouchSpeed else sneakerDef.walkSpeed
 end
 
-local function spawnBustSecurityAnimation(targetPos: Vector3)
+local function spawnBustSecurityAnimation(targetPos: Vector3): ()
 	local spawnPos = targetPos + Vector3.new(10, 0, 10)
 	local officer = WorldBuilder.BuildSecurityNPC(worldRefs.EffectsFolder, spawnPos, yawToward(spawnPos, targetPos))
 	officer:SetAttribute("IsStealthNPC", false)
@@ -323,7 +323,7 @@ local function spawnBustSecurityAnimation(targetPos: Vector3)
 	end)
 end
 
-function StealthManager.BustPlayer(player: Player, reason: string, terminalId: TerminalId?)
+function StealthManager.BustPlayer(player: Player, reason: string, terminalId: TerminalId?): ()
 	local state = getOrCreatePlayerState(player)
 	local now = os.clock()
 	if now < state.bustedUntil then
@@ -360,9 +360,11 @@ function StealthManager.BustPlayer(player: Player, reason: string, terminalId: T
 		spawnBustSecurityAnimation(Vector3.new(hrp.Position.X, 0.4, hrp.Position.Z))
 	end
 
-	local bagMsg = if confiscated then string.format("Lost %s", confiscated.displayName) else "Caught red-handed"
-	local fineMsg = if fine > 0 then string.format(" & fined %s", GameConfig.FormatCash(fine)) else ""
-	sendToast(player, string.format("COOKED! %s (%s%s)!", reason, bagMsg, fineMsg), "danger", {
+	local bustText = if fine > 0
+		then string.format("Caught! Fined %s", GameConfig.FormatCash(fine))
+		elseif confiscated then string.format("Caught! Lost %s bag!", confiscated.tier)
+		else "Caught! Stay unseen!"
+	sendToast(player, bustText, "danger", {
 		busted = true,
 	})
 
@@ -380,7 +382,7 @@ function StealthManager.BustPlayer(player: Player, reason: string, terminalId: T
 	end)
 end
 
-function StealthManager.AttemptSteal(player: Player, bagId: string)
+function StealthManager.AttemptSteal(player: Player, bagId: string): ()
 	local profile = DataManager.GetProfile(player)
 	if not profile then
 		return
@@ -397,18 +399,18 @@ function StealthManager.AttemptSteal(player: Player, bagId: string)
 	state.lastStealAttempt = now
 
 	if profile.CarriedLuggage ~= nil then
-		sendToast(player, "You're already carrying a bag! Escape to the Hideout first.", "warning")
+		sendToast(player, "Already carrying a bag!", "warning")
 		return
 	end
 
 	local bagRec = bagsById[bagId]
 	if not bagRec or bagRec.isStolen then
-		sendToast(player, "That luggage is already gone!", "warning")
+		sendToast(player, "Luggage already taken!", "warning")
 		return
 	end
 
 	if not profile.UnlockedTerminals[bagRec.terminalId] then
-		sendToast(player, "Unlock this terminal pass first!", "danger")
+		sendToast(player, "Terminal pass required!", "danger")
 		return
 	end
 
@@ -421,7 +423,7 @@ function StealthManager.AttemptSteal(player: Player, bagId: string)
 	local distToBag = (Vector3.new(hrp.Position.X, 0, hrp.Position.Z) - Vector3.new(bagRec.position.X, 0, bagRec.position.Z)).Magnitude
 	local heightDiff = math.abs(hrp.Position.Y - (bagRec.position.Y + 2.5))
 	if distToBag > GameConfig.STEAL_RANGE + 4 or heightDiff > 6.5 then
-		sendToast(player, "Move closer to snatch that luggage!", "warning")
+		sendToast(player, "Move closer to steal!", "warning")
 		return
 	end
 
@@ -438,7 +440,7 @@ function StealthManager.AttemptSteal(player: Player, bagId: string)
 		local seesBag = isPointInVisionCone(owner.currentPos, owner.currentYaw, owner.visionRange, owner.visionAngleDeg, bagRec.position, now)
 		if seesPlayer or seesBag or (owner.alertState == "Alerted" and distToBag < 14) then
 			setNpcAlertVisual(owner.model, "Alerted")
-			StealthManager.BustPlayer(player, owner.archetype.npcTitle .. " spotted you grabbing their bag!", bagRec.terminalId)
+			StealthManager.BustPlayer(player, "Owner spotted you!", bagRec.terminalId)
 			return
 		end
 	end
@@ -449,7 +451,7 @@ function StealthManager.AttemptSteal(player: Player, bagId: string)
 			local gAngle = guard.visionAngleDeg * coat.angleMultiplier
 			if isPointInVisionCone(guard.currentPos, guard.currentYaw, gRange, gAngle, hrp.Position, now) then
 				setNpcAlertVisual(guard.model, "Alerted")
-				StealthManager.BustPlayer(player, "Airport Security caught you mid-steal!", bagRec.terminalId)
+				StealthManager.BustPlayer(player, "Security caught you!", bagRec.terminalId)
 				return
 			end
 		end
@@ -480,18 +482,13 @@ function StealthManager.AttemptSteal(player: Player, bagId: string)
 		owner.leaveAt = now + 16
 	end
 
-	local toolWarning = ""
-	if not GameConfig.CanToolCrackTier(profile.UpgradeLevels.Tool, bagRec.archetype.tier) then
-		toolWarning = " (Upgrade Cracking Tool to open!)"
-	end
-	sendToast(
-		player,
-		string.format("Snatched [%s] %s! Escape south to the Hideout!%s", bagRec.archetype.tier, bagRec.archetype.displayName, toolWarning),
-		"success"
-	)
+	local snatchMsg = if GameConfig.CanToolCrackTier(profile.UpgradeLevels.Tool, bagRec.archetype.tier)
+		then string.format("Snatched %s bag!", bagRec.archetype.tier)
+		else string.format("Snatched %s! Upgrade tool!", bagRec.archetype.tier)
+	sendToast(player, snatchMsg, "success")
 end
 
-local function spawnBagAndOwnerAtSlot(bagRec: WorldBagRecord)
+local function spawnBagAndOwnerAtSlot(bagRec: WorldBagRecord): ()
 	-- Clean up previous models if respawning
 	if bagRec.model then
 		bagRec.model:Destroy()
@@ -614,7 +611,7 @@ local function spawnBagAndOwnerAtSlot(bagRec: WorldBagRecord)
 	}
 end
 
-local function spawnSecurityGuards()
+local function spawnSecurityGuards(): ()
 	for _, route in ipairs(worldRefs.GuardRoutes) do
 		local startPos = route.waypoints[1]
 		local nextPos = route.waypoints[2] or startPos
@@ -646,7 +643,7 @@ local function spawnSecurityGuards()
 	end
 end
 
-function StealthManager.SetCrouch(player: Player, wantsCrouch: boolean)
+function StealthManager.SetCrouch(player: Player, wantsCrouch: boolean): ()
 	local state = getOrCreatePlayerState(player)
 	if os.clock() < state.bustedUntil then
 		return
@@ -656,7 +653,7 @@ function StealthManager.SetCrouch(player: Player, wantsCrouch: boolean)
 	applyPlayerMovementSpeed(player)
 end
 
-function StealthManager.UseDistraction(player: Player, itemId: string)
+function StealthManager.UseDistraction(player: Player, itemId: string): ()
 	local profile = DataManager.GetProfile(player)
 	if not profile then
 		return
@@ -669,14 +666,14 @@ function StealthManager.UseDistraction(player: Player, itemId: string)
 
 	local cid: GameConfig.ConsumableId? = if itemId == "SmokeBomb" or itemId == "DistractionAlarm" then itemId :: GameConfig.ConsumableId else nil
 	if not cid then
-		sendToast(player, "Invalid gadget selected.", "warning")
+		sendToast(player, "Invalid gadget!", "warning")
 		return
 	end
 
 	local def = GameConfig.CONSUMABLES[cid]
 	local readyAt = state.gadgetCooldowns[cid] or 0
 	if now < readyAt then
-		sendToast(player, string.format("%s recharging (%.1fs)...", def.name, readyAt - now), "warning")
+		sendToast(player, string.format("Cooldown: %.1fs left!", readyAt - now), "warning")
 		return
 	end
 
@@ -796,10 +793,10 @@ function StealthManager.UseDistraction(player: Player, itemId: string)
 		model = effModel,
 	})
 
-	sendToast(player, string.format("Deployed %s!", def.name), "info")
+	sendToast(player, string.format("Used %s!", def.name), "info")
 end
 
-function StealthManager.OnPlayerAdded(player: Player)
+function StealthManager.OnPlayerAdded(player: Player): ()
 	local state = getOrCreatePlayerState(player)
 	player:SetAttribute("Suspicion", 0)
 	player:SetAttribute("IsCrouching", false)
@@ -807,7 +804,7 @@ function StealthManager.OnPlayerAdded(player: Player)
 	player:SetAttribute("CarriedArchetype", "")
 	player:SetAttribute("CarriedTier", "")
 
-	local function bindCharacter(character: Model)
+	local function bindCharacter(character: Model): ()
 		state.isCrouching = false
 		state.suspicion = 0
 		player:SetAttribute("IsCrouching", false)
@@ -827,15 +824,15 @@ function StealthManager.OnPlayerAdded(player: Player)
 	end
 end
 
-function StealthManager.OnPlayerRemoving(player: Player)
+function StealthManager.OnPlayerRemoving(player: Player): ()
 	playerStates[player] = nil
 end
 
-function StealthManager.ApplyMovementStats(player: Player)
+function StealthManager.ApplyMovementStats(player: Player): ()
 	applyPlayerMovementSpeed(player)
 end
 
-function StealthManager.Init(refs: WorldBuilder.WorldRefs, remoteSet: Remotes.RemoteSet)
+function StealthManager.Init(refs: WorldBuilder.WorldRefs, remoteSet: Remotes.RemoteSet): ()
 	worldRefs = refs
 	remotes = remoteSet
 	rayParams.FilterDescendantsInstances = { worldRefs.OpaqueCoverFolder }
@@ -899,7 +896,7 @@ function StealthManager.Init(refs: WorldBuilder.WorldRefs, remoteSet: Remotes.Re
 	spawnSecurityGuards()
 end
 
-local function updateCarouselsAndBags(dt: number, now: number)
+local function updateCarouselsAndBags(dt: number, now: number): ()
 	for _, track in ipairs(worldRefs.Carousels) do
 		for _, slat in ipairs(track.slats) do
 			slat.dist = (slat.dist + track.speed * dt) % track.perimeter
@@ -923,7 +920,7 @@ local function updateCarouselsAndBags(dt: number, now: number)
 	end
 end
 
-local function updatePassengerBehavior(dt: number, now: number)
+local function updatePassengerBehavior(dt: number, now: number): ()
 	for _, npc in pairs(passengersById) do
 		-- Check smoke blindness
 		local isBlinded = false
@@ -1035,7 +1032,7 @@ local function updatePassengerBehavior(dt: number, now: number)
 	end
 end
 
-local function updateSecurityGuards(dt: number, now: number)
+local function updateSecurityGuards(dt: number, now: number): ()
 	for _, guard in pairs(guardsById) do
 		local isBlinded = false
 		for _, eff in ipairs(activeEffects) do
@@ -1085,7 +1082,7 @@ local function updateSecurityGuards(dt: number, now: number)
 	end
 end
 
-local function evaluatePlayersStealth(dt: number, now: number)
+local function evaluatePlayersStealth(dt: number, now: number): ()
 	-- Track which NPCs currently see any player so alert colors stay crisp
 	local npcThreatSeen: { [string]: AlertState } = {}
 
@@ -1114,7 +1111,7 @@ local function evaluatePlayersStealth(dt: number, now: number)
 				if ok and stashed then
 					player:SetAttribute("CarriedArchetype", "")
 					player:SetAttribute("CarriedTier", "")
-					sendToast(player, string.format("Secured %s in Hideout! Place it on a Workbench!", stashed.displayName), "success")
+					sendToast(player, "Stashed in Hideout!", "success")
 				elseif err then
 					sendToast(player, err, "warning")
 				end
@@ -1136,7 +1133,7 @@ local function evaluatePlayersStealth(dt: number, now: number)
 			hrp.CFrame = CFrame.new(termDef.gateReturnPosition)
 			if now - state.lastGateWarnAt > 1.5 then
 				state.lastGateWarnAt = now
-				sendToast(player, string.format("Access Denied! Buy the %s Pass (%s) at the gate.", termDef.name, GameConfig.FormatCash(termDef.unlockCost)), "warning")
+				sendToast(player, string.format("Locked! %s (%s)", termDef.shortName, GameConfig.FormatCash(termDef.unlockCost)), "warning")
 			end
 			continue
 		end
@@ -1169,7 +1166,7 @@ local function evaluatePlayersStealth(dt: number, now: number)
 					local rate = 135 * termDef.awarenessSpeedMultiplier * coat.suspicionMultiplier
 					if rate > maxThreatRate then
 						maxThreatRate = rate
-						spottedByHotSource = npc.archetype.npcTitle .. " spotted their stolen bag!"
+						spottedByHotSource = "Owner spotted stolen bag!"
 						spottedTerminal = npc.terminalId
 					end
 					npcThreatSeen[npc.npcId] = "Alerted"
@@ -1199,7 +1196,7 @@ local function evaluatePlayersStealth(dt: number, now: number)
 					local rate = 115 * termDef.awarenessSpeedMultiplier * coat.suspicionMultiplier * crouchSuspMult
 					if rate > maxThreatRate then
 						maxThreatRate = rate
-						spottedByHotSource = "Airport Security spotted you fleeing with stolen luggage!"
+						spottedByHotSource = "Security spotted you!"
 						spottedTerminal = guard.terminalId or carried.sourceTerminal
 					end
 					npcThreatSeen[guard.npcId] = "Alerted"
@@ -1261,7 +1258,7 @@ end
 
 local stealthAcc = 0
 
-function StealthManager.Step(dt: number)
+function StealthManager.Step(dt: number): ()
 	local now = os.clock()
 
 	-- Clean expired gadgets

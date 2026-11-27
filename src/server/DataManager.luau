@@ -234,7 +234,7 @@ local function rollLootForArchetype(archetypeId: string, fallbackTier: RarityTie
 	return results
 end
 
-local function updateLeaderstats(player: Player, profile: PlayerProfile)
+local function updateLeaderstats(player: Player, profile: PlayerProfile): ()
 	local cashVal = leaderstatsCash[player]
 	if cashVal then
 		cashVal.Value = math.floor(profile.Cash)
@@ -245,7 +245,7 @@ local function updateLeaderstats(player: Player, profile: PlayerProfile)
 	end
 end
 
-local function applySavedPayload(profile: PlayerProfile, saved: SavedProfilePayload)
+local function applySavedPayload(profile: PlayerProfile, saved: SavedProfilePayload): ()
 	if typeof(saved.Cash) == "number" then
 		profile.Cash = math.max(0, math.floor(saved.Cash))
 	end
@@ -385,7 +385,7 @@ local function serializeProfile(profile: PlayerProfile): SavedProfilePayload
 	}
 end
 
-local function setupLeaderstats(player: Player, profile: PlayerProfile)
+local function setupLeaderstats(player: Player, profile: PlayerProfile): ()
 	local folder = Instance.new("Folder")
 	folder.Name = "leaderstats"
 	folder.Parent = player
@@ -422,7 +422,7 @@ function DataManager.LoadProfile(player: Player): PlayerProfile
 	return profile
 end
 
-function DataManager.SaveProfile(player: Player)
+function DataManager.SaveProfile(player: Player): ()
 	local profile = profiles[player]
 	if not profile then
 		return
@@ -437,7 +437,7 @@ function DataManager.SaveProfile(player: Player)
 	end)
 end
 
-function DataManager.UnloadProfile(player: Player)
+function DataManager.UnloadProfile(player: Player): ()
 	DataManager.SaveProfile(player)
 	profiles[player] = nil
 	leaderstatsCash[player] = nil
@@ -501,14 +501,14 @@ end
 function DataManager.BankCarriedLuggage(player: Player): (boolean, StashedLuggageData?, string?)
 	local profile = profiles[player]
 	if not profile then
-		return false, nil, "Profile missing"
+		return false, nil, "Profile missing!"
 	end
 	local carried = profile.CarriedLuggage
 	if not carried then
-		return false, nil, "No carried bag"
+		return false, nil, "No carried bag!"
 	end
 	if #profile.StashedLuggage >= MAX_STASH_CAPACITY then
-		return false, nil, "Stash full (max 20 bags) — crack some on a Workbench!"
+		return false, nil, "Stash full! Max 20."
 	end
 
 	local stashed: StashedLuggageData = {
@@ -528,23 +528,23 @@ end
 function DataManager.PlaceStashedOnWorkbench(player: Player, bagUid: string?, slotIndex: number): (boolean, string)
 	local profile = profiles[player]
 	if not profile then
-		return false, "Profile not loaded."
+		return false, "Profile missing!"
 	end
 
 	if slotIndex < 1 or slotIndex > MAX_WORKBENCH_SLOTS then
-		return false, "Invalid workbench slot."
+		return false, "Invalid workbench!"
 	end
 	if slotIndex > profile.UpgradeLevels.WorkbenchCount then
-		return false, "Unlock this Workbench slot in the Black-Market Shop first!"
+		return false, "Workbench locked! Upgrade in Shop."
 	end
 
 	local slot = profile.WorkbenchSlots[slotIndex]
 	if slot.bagUid ~= nil then
-		return false, "That Workbench slot is already occupied."
+		return false, "Workbench is busy!"
 	end
 
 	if #profile.StashedLuggage == 0 then
-		return false, "You have no stashed luggage yet. Steal a bag from the Airport!"
+		return false, "No stashed bags!"
 	end
 
 	-- Find matching bagUid or pick the newest bag if nil/empty
@@ -571,7 +571,7 @@ function DataManager.PlaceStashedOnWorkbench(player: Player, bagUid: string?, sl
 	end
 
 	if not chosenIndex then
-		return false, "Selected bag not found in stash."
+		return false, "Bag not found!"
 	end
 
 	local bag = profile.StashedLuggage[chosenIndex]
@@ -584,7 +584,7 @@ function DataManager.PlaceStashedOnWorkbench(player: Player, bagUid: string?, sl
 			end
 		end
 		local neededTool = GameConfig.GetToolUpgrade(neededLevel)
-		return false, string.format("%s (%s) requires %s (Lv.%d) to crack!", bag.displayName, bag.tier, neededTool.name, neededTool.level)
+		return false, string.format("Need %s (Lv.%d)!", neededTool.name, neededTool.level)
 	end
 
 	table.remove(profile.StashedLuggage, chosenIndex)
@@ -605,21 +605,21 @@ function DataManager.PlaceStashedOnWorkbench(player: Player, bagUid: string?, sl
 	slot.isReady = false
 	slot.pendingLoot = nil
 
-	return true, string.format("Cracking %s (%ds)!", bag.displayName, math.ceil(duration))
+	return true, string.format("Cracking started! (%ds)", math.ceil(duration))
 end
 
 function DataManager.ClaimWorkbenchSlot(player: Player, slotIndex: number): (boolean, { LootEntry }?, string)
 	local profile = profiles[player]
 	if not profile then
-		return false, nil, "Profile not loaded."
+		return false, nil, "Profile missing!"
 	end
 	if slotIndex < 1 or slotIndex > MAX_WORKBENCH_SLOTS then
-		return false, nil, "Invalid workbench slot."
+		return false, nil, "Invalid workbench!"
 	end
 
 	local slot = profile.WorkbenchSlots[slotIndex]
 	if not slot.bagUid then
-		return false, nil, "This Workbench is empty."
+		return false, nil, "Workbench is empty!"
 	end
 
 	local now = Workspace:GetServerTimeNow()
@@ -631,7 +631,7 @@ function DataManager.ClaimWorkbenchSlot(player: Player, slotIndex: number): (boo
 			end
 		else
 			local rem = math.ceil(math.max(0, (slot.endsAt or now) - now))
-			return false, nil, string.format("Still cracking (%ds remaining)...", rem)
+			return false, nil, string.format("Cracking: %ds left!", rem)
 		end
 	end
 
@@ -641,7 +641,7 @@ function DataManager.ClaimWorkbenchSlot(player: Player, slotIndex: number): (boo
 	end
 
 	profile.WorkbenchSlots[slotIndex] = makeEmptySlot(slotIndex)
-	return true, loot, "Loot claimed!"
+	return true, loot, "Claimed loot!"
 end
 
 function DataManager.SellAllLoot(player: Player): (boolean, number, number)
@@ -666,73 +666,73 @@ end
 function DataManager.BuyUpgrade(player: Player, category: string): (boolean, string)
 	local profile = profiles[player]
 	if not profile then
-		return false, "Profile missing."
+		return false, "Profile missing!"
 	end
 
 	if category == "Tool" then
 		local nextLevel = profile.UpgradeLevels.Tool + 1
 		if nextLevel > #GameConfig.CRACKING_TOOLS then
-			return false, "Cracking Tool is already maxed!"
+			return false, "Tool already maxed!"
 		end
 		local nextDef = GameConfig.GetToolUpgrade(nextLevel)
 		if not DataManager.SpendCash(player, nextDef.cost) then
-			return false, string.format("Need %s for %s!", GameConfig.FormatCash(nextDef.cost), nextDef.name)
+			return false, "Need more cash!"
 		end
 		profile.UpgradeLevels.Tool = nextLevel
-		return true, string.format("Upgraded to %s!", nextDef.name)
+		return true, string.format("Bought %s!", nextDef.name)
 	elseif category == "WorkbenchCount" then
 		local nextLevel = profile.UpgradeLevels.WorkbenchCount + 1
 		if nextLevel > #GameConfig.WORKBENCH_UPGRADES then
-			return false, "All 4 Workbenches are already unlocked!"
+			return false, "Workbenches already maxed!"
 		end
 		local nextDef = GameConfig.GetWorkbenchUpgrade(nextLevel)
 		if not DataManager.SpendCash(player, nextDef.cost) then
-			return false, string.format("Need %s for %s!", GameConfig.FormatCash(nextDef.cost), nextDef.name)
+			return false, "Need more cash!"
 		end
 		profile.UpgradeLevels.WorkbenchCount = nextLevel
-		return true, string.format("Unlocked Workbench Slot #%d!", nextLevel)
+		return true, string.format("Unlocked Workbench #%d!", nextLevel)
 	elseif category == "Sneakers" then
 		local nextLevel = profile.UpgradeLevels.Sneakers + 1
 		if nextLevel > #GameConfig.SNEAKER_UPGRADES then
-			return false, "Sneakers are already maxed!"
+			return false, "Sneakers already maxed!"
 		end
 		local nextDef = GameConfig.GetSneakerUpgrade(nextLevel)
 		if not DataManager.SpendCash(player, nextDef.cost) then
-			return false, string.format("Need %s for %s!", GameConfig.FormatCash(nextDef.cost), nextDef.name)
+			return false, "Need more cash!"
 		end
 		profile.UpgradeLevels.Sneakers = nextLevel
-		return true, string.format("Equipped %s!", nextDef.name)
+		return true, string.format("Bought %s!", nextDef.name)
 	elseif category == "StealthCoat" then
 		local nextLevel = profile.UpgradeLevels.StealthCoat + 1
 		if nextLevel > #GameConfig.STEALTH_COAT_UPGRADES then
-			return false, "Stealth Coat is already maxed!"
+			return false, "Coat already maxed!"
 		end
 		local nextDef = GameConfig.GetStealthCoatUpgrade(nextLevel)
 		if not DataManager.SpendCash(player, nextDef.cost) then
-			return false, string.format("Need %s for %s!", GameConfig.FormatCash(nextDef.cost), nextDef.name)
+			return false, "Need more cash!"
 		end
 		profile.UpgradeLevels.StealthCoat = nextLevel
-		return true, string.format("Equipped %s!", nextDef.name)
+		return true, string.format("Bought %s!", nextDef.name)
 	end
 
-	return false, "Unknown upgrade category."
+	return false, "Unknown upgrade!"
 end
 
 function DataManager.BuyConsumable(player: Player, itemId: string): (boolean, string)
 	local profile = profiles[player]
 	if not profile then
-		return false, "Profile missing."
+		return false, "Profile missing!"
 	end
 	local def = GameConfig.CONSUMABLES[itemId :: ConsumableId]
 	if not def then
-		return false, "Unknown gadget."
+		return false, "Unknown gadget!"
 	end
 	local current = profile.Consumables[def.id] or 0
 	if current >= def.maxStack then
-		return false, string.format("%s stack full (%d/%d)!", def.name, current, def.maxStack)
+		return false, string.format("%s full (%d/%d)!", def.name, current, def.maxStack)
 	end
 	if not DataManager.SpendCash(player, def.cost) then
-		return false, string.format("Need %s for %s!", GameConfig.FormatCash(def.cost), def.name)
+		return false, "Need more cash!"
 	end
 	profile.Consumables[def.id] = current + 1
 	return true, string.format("Bought %s (%d/%d)!", def.name, current + 1, def.maxStack)
@@ -741,15 +741,15 @@ end
 function DataManager.ConsumeGadget(player: Player, itemId: ConsumableId): (boolean, string)
 	local profile = profiles[player]
 	if not profile then
-		return false, "Profile missing."
+		return false, "Profile missing!"
 	end
 	local def = GameConfig.CONSUMABLES[itemId]
 	if not def then
-		return false, "Invalid gadget."
+		return false, "Invalid gadget!"
 	end
 	local current = profile.Consumables[itemId] or 0
 	if current <= 0 then
-		return false, string.format("Out of %s! Buy more in the Hideout Shop.", def.name)
+		return false, string.format("Out of %s!", def.name)
 	end
 	profile.Consumables[itemId] = current - 1
 	return true, def.name
@@ -758,20 +758,20 @@ end
 function DataManager.UnlockTerminal(player: Player, terminalId: string): (boolean, string)
 	local profile = profiles[player]
 	if not profile then
-		return false, "Profile missing."
+		return false, "Profile missing!"
 	end
 	local def = GameConfig.TERMINALS[terminalId :: TerminalId]
 	if not def then
-		return false, "Unknown terminal."
+		return false, "Unknown terminal!"
 	end
 	if profile.UnlockedTerminals[def.id] then
-		return false, string.format("%s is already unlocked!", def.name)
+		return false, string.format("%s already unlocked!", def.shortName)
 	end
 	if not DataManager.SpendCash(player, def.unlockCost) then
-		return false, string.format("Need %s for %s pass!", GameConfig.FormatCash(def.unlockCost), def.name)
+		return false, "Need more cash!"
 	end
 	profile.UnlockedTerminals[def.id] = true
-	return true, string.format("Unlocked %s!", def.name)
+	return true, string.format("Unlocked %s Wing!", def.shortName)
 end
 
 function DataManager.UpdateWorkbenchTimers(now: number): { Player }
@@ -811,7 +811,7 @@ function DataManager.BuildClientSnapshot(player: Player): ClientProfileSnapshot?
 	}
 end
 
-function DataManager.SaveAll()
+function DataManager.SaveAll(): ()
 	for _, player in ipairs(Players:GetPlayers()) do
 		DataManager.SaveProfile(player)
 	end

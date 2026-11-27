@@ -21,7 +21,7 @@ local GameplayManager = {}
 local worldRefs: WorldBuilder.WorldRefs
 local remotes: Remotes.RemoteSet
 
-local function syncPlayer(player: Player, toast: string?, tone: string?, extra: { [string]: any }?)
+local function syncPlayer(player: Player, toast: string?, tone: string?, extra: { [string]: any }?): ()
 	local snapshot = DataManager.BuildClientSnapshot(player)
 	if not snapshot then
 		return
@@ -44,7 +44,7 @@ local function isNearWorldPoint(player: Player, targetPos: Vector3, maxDist: num
 	return (hrp.Position - targetPos).Magnitude <= maxDist
 end
 
-local function handleWorkbenchInteract(player: Player, slotIndex: number)
+local function handleWorkbenchInteract(player: Player, slotIndex: number): ()
 	local profile = DataManager.GetProfile(player)
 	if not profile then
 		return
@@ -63,7 +63,7 @@ local function handleWorkbenchInteract(player: Player, slotIndex: number)
 		local nextBench = GameConfig.GetWorkbenchUpgrade(profile.UpgradeLevels.WorkbenchCount + 1)
 		syncPlayer(
 			player,
-			string.format("Workbench #%d is locked! Buy %s (%s) in the Shop.", slotIndex, nextBench.name, GameConfig.FormatCash(nextBench.cost)),
+			string.format("Workbench #%d locked (%s)!", slotIndex, GameConfig.FormatCash(nextBench.cost)),
 			"warning"
 		)
 		return
@@ -78,15 +78,13 @@ local function handleWorkbenchInteract(player: Player, slotIndex: number)
 		if slot.isReady or (slot.endsAt and now >= slot.endsAt) then
 			local ok, loot, msg = DataManager.ClaimWorkbenchSlot(player, slotIndex)
 			if ok and loot and #loot > 0 then
-				local names = {}
 				local totalVal = 0
 				for _, entry in ipairs(loot) do
-					table.insert(names, string.format("[%s] %s", entry.tier, entry.name))
 					totalVal += entry.value
 				end
 				syncPlayer(
 					player,
-					string.format("Cracked open: %s (Worth %s)! Sell at Vinnie's Fence!", table.concat(names, " + "), GameConfig.FormatCash(totalVal)),
+					string.format("Claimed %s loot!", GameConfig.FormatCash(totalVal)),
 					"success",
 					{ claimedLoot = loot }
 				)
@@ -95,12 +93,12 @@ local function handleWorkbenchInteract(player: Player, slotIndex: number)
 			end
 		else
 			local rem = math.ceil(math.max(0, (slot.endsAt or now) - now))
-			syncPlayer(player, string.format("Cracking %s — %ds remaining!", slot.displayName or "Bag", rem), "info")
+			syncPlayer(player, string.format("Cracking: %ds left!", rem), "info")
 		end
 	end
 end
 
-local function connectWorldPrompts()
+local function connectWorldPrompts(): ()
 	for _, bench in ipairs(worldRefs.Workbenches) do
 		bench.prompt.Triggered:Connect(function(player: Player)
 			handleWorkbenchInteract(player, bench.slotIndex)
@@ -108,11 +106,11 @@ local function connectWorldPrompts()
 	end
 
 	worldRefs.FencePrompt.Triggered:Connect(function(player: Player)
-		local ok, earned, count = DataManager.SellAllLoot(player)
+		local ok, earned = DataManager.SellAllLoot(player)
 		if ok then
-			syncPlayer(player, string.format("Sold %d valuables to Vinnie's Fence for +%s!", count, GameConfig.FormatCash(earned)), "success", { soldAmount = earned })
+			syncPlayer(player, string.format("Sold loot for +%s!", GameConfig.FormatCash(earned)), "success", { soldAmount = earned })
 		else
-			syncPlayer(player, "No revealed loot to sell! Crack stolen bags on a Workbench first.", "warning")
+			syncPlayer(player, "No loot to sell!", "warning")
 		end
 	end)
 
@@ -139,7 +137,7 @@ local function connectWorldPrompts()
 				return
 			end
 			if profile.UnlockedTerminals[terminalId] then
-				syncPlayer(player, string.format("%s is already unlocked — walk right through!", GameConfig.TERMINALS[terminalId].name), "info")
+				syncPlayer(player, string.format("%s already unlocked!", GameConfig.TERMINALS[terminalId].shortName), "info")
 				return
 			end
 			local ok, msg = DataManager.UnlockTerminal(player, terminalId)
@@ -148,7 +146,7 @@ local function connectWorldPrompts()
 	end
 end
 
-local function connectRemotes()
+local function connectRemotes(): ()
 	remotes.AttemptStealLuggage.OnServerEvent:Connect(function(player: Player, bagId: unknown)
 		if typeof(bagId) ~= "string" or #bagId > 80 then
 			return
@@ -170,7 +168,7 @@ local function connectRemotes()
 		local character = player.Character
 		local hrp = if character then character:FindFirstChild("HumanoidRootPart") :: BasePart? else nil
 		if not hrp or not GameConfig.IsPointInHideout(hrp.Position) then
-			syncPlayer(player, "Return to your Hideout to use Workbenches!", "warning")
+			syncPlayer(player, "Return to Hideout first!", "warning")
 			return
 		end
 		local ok, msg = DataManager.PlaceStashedOnWorkbench(player, uidStr, idx)
@@ -185,18 +183,16 @@ local function connectRemotes()
 		local character = player.Character
 		local hrp = if character then character:FindFirstChild("HumanoidRootPart") :: BasePart? else nil
 		if not hrp or not GameConfig.IsPointInHideout(hrp.Position) then
-			syncPlayer(player, "Return to your Hideout to claim cracked loot!", "warning")
+			syncPlayer(player, "Return to Hideout first!", "warning")
 			return
 		end
 		local ok, loot, msg = DataManager.ClaimWorkbenchSlot(player, idx)
 		if ok and loot and #loot > 0 then
-			local names = {}
 			local totalVal = 0
 			for _, entry in ipairs(loot) do
-				table.insert(names, string.format("[%s] %s", entry.tier, entry.name))
 				totalVal += entry.value
 			end
-			syncPlayer(player, string.format("Claimed: %s (+%s value)!", table.concat(names, " + "), GameConfig.FormatCash(totalVal)), "success", { claimedLoot = loot })
+			syncPlayer(player, string.format("Claimed %s loot!", GameConfig.FormatCash(totalVal)), "success", { claimedLoot = loot })
 		else
 			syncPlayer(player, msg, "warning")
 		end
@@ -206,15 +202,15 @@ local function connectRemotes()
 		local fenceDesk = worldRefs.FencePrompt.Parent
 		if fenceDesk and fenceDesk:IsA("BasePart") then
 			if not isNearWorldPoint(player, fenceDesk.Position, 20) then
-				syncPlayer(player, "Walk up to Vinnie's Fence Counter in the Hideout to sell!", "warning")
+				syncPlayer(player, "Stand near Fence to sell!", "warning")
 				return
 			end
 		end
-		local ok, earned, count = DataManager.SellAllLoot(player)
+		local ok, earned = DataManager.SellAllLoot(player)
 		if ok then
-			syncPlayer(player, string.format("Sold %d items for +%s!", count, GameConfig.FormatCash(earned)), "success", { soldAmount = earned })
+			syncPlayer(player, string.format("Sold loot for +%s!", GameConfig.FormatCash(earned)), "success", { soldAmount = earned })
 		else
-			syncPlayer(player, "You have no revealed valuables to sell yet!", "warning")
+			syncPlayer(player, "No loot to sell!", "warning")
 		end
 	end)
 
@@ -260,7 +256,7 @@ local function connectRemotes()
 	end)
 end
 
-function GameplayManager.Start()
+function GameplayManager.Start(): ()
 	remotes = Remotes.InitServer()
 	worldRefs = WorldBuilder.Build()
 
@@ -268,11 +264,11 @@ function GameplayManager.Start()
 	connectWorldPrompts()
 	connectRemotes()
 
-	local function onPlayerJoin(player: Player)
+	local function onPlayerJoin(player: Player): ()
 		DataManager.LoadProfile(player)
 		StealthManager.OnPlayerAdded(player)
 		task.defer(function()
-			syncPlayer(player, "Welcome to Steal a Luggage! Match bags to owners, watch their cones, and swipe when they look away!", "info")
+			syncPlayer(player, "Steal bags & escape south!", "info")
 		end)
 	end
 
@@ -299,7 +295,7 @@ function GameplayManager.Start()
 			timerAcc = 0
 			local completedPlayers = DataManager.UpdateWorkbenchTimers(Workspace:GetServerTimeNow())
 			for _, player in ipairs(completedPlayers) do
-				syncPlayer(player, "A Workbench finished cracking luggage! Head back to claim your loot!", "success")
+				syncPlayer(player, "Workbench ready! Claim loot!", "success")
 			end
 		end
 	end)

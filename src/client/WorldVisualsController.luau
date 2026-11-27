@@ -32,7 +32,7 @@ local carriedPropsByPlayer: { [Player]: { archetypeId: string, model: Model } } 
 local benchShowcases: { [number]: BenchShowcase } = {}
 local modalOpenRequestCb: ((string) -> ())? = nil
 
-local function removeCarriedProp(player: Player)
+local function removeCarriedProp(player: Player): ()
 	local rec = carriedPropsByPlayer[player]
 	if rec then
 		if rec.model and rec.model.Parent then
@@ -42,7 +42,7 @@ local function removeCarriedProp(player: Player)
 	end
 end
 
-local function refreshCarriedPropForPlayer(player: Player)
+local function refreshCarriedPropForPlayer(player: Player): ()
 	local archId = player:GetAttribute("CarriedArchetype")
 	if typeof(archId) ~= "string" or archId == "" then
 		removeCarriedProp(player)
@@ -109,7 +109,7 @@ local function refreshCarriedPropForPlayer(player: Player)
 	}
 end
 
-local function watchPlayerProps(player: Player)
+local function watchPlayerProps(player: Player): ()
 	player:GetAttributeChangedSignal("CarriedArchetype"):Connect(function()
 		refreshCarriedPropForPlayer(player)
 	end)
@@ -125,7 +125,16 @@ local function watchPlayerProps(player: Player)
 	end
 end
 
-local function updateWorkbenchVisuals(dt: number)
+local function isLocalPlayerInHideout(): boolean
+	local character = Players.LocalPlayer.Character
+	local hrp = if character then character:FindFirstChild("HumanoidRootPart") :: BasePart? else nil
+	if not hrp then
+		return false
+	end
+	return GameConfig.IsPointInHideout(hrp.Position)
+end
+
+local function updateWorkbenchVisuals(dt: number): ()
 	local snap = ClientState.GetSnapshot()
 	if not snap then
 		return
@@ -140,6 +149,7 @@ local function updateWorkbenchVisuals(dt: number)
 	end
 
 	local now = Workspace:GetServerTimeNow()
+	local inHideout = isLocalPlayerInHideout()
 
 	for slotIndex = 1, 4 do
 		local benchModel = decor:FindFirstChild("Workbench_" .. slotIndex)
@@ -155,6 +165,11 @@ local function updateWorkbenchVisuals(dt: number)
 		local deskTop = benchModel:FindFirstChild("DeskTop") :: BasePart?
 		local prompt = if anchor then anchor:FindFirstChild("WorkbenchPrompt") :: ProximityPrompt? else nil
 		local bb = if anchor then anchor:FindFirstChild("WorkbenchStatusGui") :: BillboardGui? else nil
+		if bb then
+			bb.Size = UDim2.fromOffset(132, 44)
+			bb.MaxDistance = 38
+			bb.Enabled = inHideout
+		end
 		local card = if bb then bb:FindFirstChildOfClass("Frame") else nil
 
 		local titleLabel = if card then card:FindFirstChildOfClass("TextLabel") else nil
@@ -225,10 +240,10 @@ local function updateWorkbenchVisuals(dt: number)
 				strip.Color = Color3.fromRGB(95, 102, 118)
 			end
 			if titleLabel then
-				titleLabel.Text = "WORKBENCH #" .. slotIndex .. " [LOCKED]"
+				titleLabel.Text = "BENCH #" .. slotIndex .. " [LOCKED]"
 			end
 			if subLabel then
-				subLabel.Text = "Unlock in Shop: " .. GameConfig.FormatCash(nextCost)
+				subLabel.Text = "Shop: " .. GameConfig.FormatCash(nextCost)
 				subLabel.TextColor3 = Color3.fromRGB(255, 190, 88)
 			end
 			if progressFill then
@@ -242,13 +257,13 @@ local function updateWorkbenchVisuals(dt: number)
 				strip.Color = Color3.fromRGB(72, 224, 255)
 			end
 			if titleLabel then
-				titleLabel.Text = "WORKBENCH #" .. slotIndex .. " [READY]"
+				titleLabel.Text = "BENCH #" .. slotIndex .. " [READY]"
 			end
 			if subLabel then
 				if #snap.StashedLuggage > 0 then
-					subLabel.Text = string.format("Press E to Crack (%d in Stash)", #snap.StashedLuggage)
+					subLabel.Text = string.format("Press E (%d Stashed)", #snap.StashedLuggage)
 				else
-					subLabel.Text = "Steal a bag & return to crack!"
+					subLabel.Text = "Empty — Press E"
 				end
 				subLabel.TextColor3 = Color3.fromRGB(160, 228, 255)
 			end
@@ -269,10 +284,10 @@ local function updateWorkbenchVisuals(dt: number)
 					strip.Color = Color3.fromRGB(68, 255, 148)
 				end
 				if titleLabel then
-					titleLabel.Text = (slot.displayName or "Bag") .. " [OPEN!]"
+					titleLabel.Text = "#" .. slotIndex .. " [OPEN!]"
 				end
 				if subLabel then
-					subLabel.Text = "PRESS E TO CLAIM LOOT!"
+					subLabel.Text = "Press E to Claim"
 					subLabel.TextColor3 = Color3.fromRGB(82, 255, 158)
 				end
 				if progressFill then
@@ -280,7 +295,7 @@ local function updateWorkbenchVisuals(dt: number)
 					progressFill.BackgroundColor3 = Color3.fromRGB(68, 255, 148)
 				end
 				if prompt then
-					prompt.ActionText = "Claim Revealed Loot!"
+					prompt.ActionText = "Claim Loot"
 				end
 
 				-- Animate suitcase lid flipping open!
@@ -294,10 +309,10 @@ local function updateWorkbenchVisuals(dt: number)
 					strip.Color = Color3.fromRGB(255, 186, 56)
 				end
 				if titleLabel then
-					titleLabel.Text = string.format("[%s] %s", slot.tier or "Bag", slot.displayName or "Luggage")
+					titleLabel.Text = string.format("#%d: %s", slotIndex, slot.tier or "Bag")
 				end
 				if subLabel then
-					subLabel.Text = string.format("Cracking... %ds remaining", math.ceil(rem))
+					subLabel.Text = string.format("Cracking: %ds", math.ceil(rem))
 					subLabel.TextColor3 = Color3.fromRGB(255, 224, 130)
 				end
 				if progressFill then
@@ -312,7 +327,7 @@ local function updateWorkbenchVisuals(dt: number)
 	end
 end
 
-local function updateCrouchCamera(dt: number)
+local function updateCrouchCamera(dt: number): ()
 	local char = Players.LocalPlayer.Character
 	local humanoid = if char then char:FindFirstChildOfClass("Humanoid") else nil
 	if not humanoid then
@@ -324,11 +339,11 @@ local function updateCrouchCamera(dt: number)
 	humanoid.CameraOffset = Vector3.new(0, nextY, 0)
 end
 
-function WorldVisualsController.SetModalCallback(cb: (string) -> ())
+function WorldVisualsController.SetModalCallback(cb: (string) -> ()): ()
 	modalOpenRequestCb = cb
 end
 
-function WorldVisualsController.Start()
+function WorldVisualsController.Start(): ()
 	for _, p in ipairs(Players:GetPlayers()) do
 		watchPlayerProps(p)
 	end
