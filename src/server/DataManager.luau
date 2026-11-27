@@ -271,10 +271,9 @@ local function applySavedPayload(profile: PlayerProfile, saved: SavedProfilePayl
 
 	if typeof(saved.Consumables) == "table" then
 		for _, cid in ipairs(GameConfig.CONSUMABLE_ORDER) do
-			local def = GameConfig.CONSUMABLES[cid]
 			local rawCount = saved.Consumables[cid]
 			if typeof(rawCount) == "number" then
-				profile.Consumables[cid] = math.clamp(math.floor(rawCount), 0, def.maxStack)
+				profile.Consumables[cid] = math.max(0, math.floor(rawCount))
 			end
 		end
 	end
@@ -725,17 +724,14 @@ function DataManager.BuyConsumable(player: Player, itemId: string): (boolean, st
 	end
 	local def = GameConfig.CONSUMABLES[itemId :: ConsumableId]
 	if not def then
-		return false, "Unknown gadget!"
-	end
-	local current = profile.Consumables[def.id] or 0
-	if current >= def.maxStack then
-		return false, string.format("%s full (%d/%d)!", def.name, current, def.maxStack)
+		return false, "Unknown item!"
 	end
 	if not DataManager.SpendCash(player, def.cost) then
 		return false, "Need more cash!"
 	end
-	profile.Consumables[def.id] = current + 1
-	return true, string.format("Bought %s (%d/%d)!", def.name, current + 1, def.maxStack)
+	local newCount = (profile.Consumables[def.id] or 0) + 1
+	profile.Consumables[def.id] = newCount
+	return true, string.format("Bought %s (x%d)!", def.name, newCount)
 end
 
 function DataManager.ConsumeGadget(player: Player, itemId: ConsumableId): (boolean, string)

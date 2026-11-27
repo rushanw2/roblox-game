@@ -1,6 +1,6 @@
 --!strict
 -- Renders smooth raycast-clipped circular-sector Vision Cones on the airport floor for nearby NPCs.
--- Dynamically scales cone dimensions to reflect Stealth Coat & Crouch bonuses accurately.
+-- Dynamically scales cone dimensions to reflect Stealth Coat bonuses accurately.
 
 local Players = game:GetService("Players")
 local ReplicatedStorage = game:GetService("ReplicatedStorage")
@@ -55,7 +55,7 @@ local function createWedge(parent: Instance): WedgePart
 	return w
 end
 
-local function initPool()
+local function initPool(): ()
 	local existing = Workspace:FindFirstChild("LocalVisionCones")
 	if existing then
 		existing:Destroy()
@@ -80,7 +80,7 @@ local function initPool()
 	end
 end
 
-local function hideSlot(slot: ConePoolSlot)
+local function hideSlot(slot: ConePoolSlot): ()
 	if not slot.inUse then
 		return
 	end
@@ -116,7 +116,7 @@ local function renderCone(
 	effAngleDeg: number,
 	color: Color3,
 	transparency: number
-)
+): ()
 	slot.inUse = true
 	local totalRad = math.rad(math.clamp(effAngleDeg, 10, 170))
 	local sliceRad = totalRad / SLICE_COUNT
@@ -159,7 +159,7 @@ local function renderCone(
 	end
 end
 
-local function collectNearbyNpcs(playerPos: Vector3, container: Instance?, outList: { { model: Model, distSq: number } })
+local function collectNearbyNpcs(playerPos: Vector3, container: Instance?, outList: { { model: Model, distSq: number } }): ()
 	if not container then
 		return
 	end
@@ -177,7 +177,7 @@ local function collectNearbyNpcs(playerPos: Vector3, container: Instance?, outLi
 	end
 end
 
-function VisionConeRenderer.Start()
+function VisionConeRenderer.Start(): ()
 	initPool()
 
 	local airportWorld = Workspace:WaitForChild("AirportWorld", 15)
@@ -224,7 +224,6 @@ function VisionConeRenderer.Start()
 		local snap = ClientState.GetSnapshot()
 		local coatLevel = if snap then snap.UpgradeLevels.StealthCoat else 1
 		local coat = GameConfig.GetStealthCoatUpgrade(coatLevel)
-		local crouchRangeMult = if ClientState.IsCrouching() then GameConfig.CROUCH_DETECTION_RANGE_MULT else 1.0
 		local now = os.clock()
 
 		local used = math.min(#candidates, POOL_SIZE)
@@ -240,7 +239,7 @@ function VisionConeRenderer.Start()
 
 			local guardDetMult = if kind == "Security" then termDef.detectionMultiplier else 1.0
 			local color, transparency, rangeScale = getConeAppearance(npc, kind, alertState, now)
-			local effRange = baseRange * guardDetMult * coat.rangeMultiplier * crouchRangeMult * rangeScale
+			local effRange = baseRange * guardDetMult * coat.rangeMultiplier * rangeScale
 			local effAngle = baseAngle * coat.angleMultiplier
 
 			local _, yaw, _ = root.CFrame:ToOrientation()

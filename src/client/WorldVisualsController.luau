@@ -2,7 +2,7 @@
 -- Manages client-side 3D visuals and physical controls:
 -- 1. Visible carried luggage prop attached to player characters
 -- 2. Live Hideout Workbench 3D suitcase props, progress bars & lid-opening reveals
--- 3. Crouch camera/pose feedback & stealth/gadget hotkeys
+-- 3. Stackable Backpack Tool hotbar triggering & Stash/Shop shortcut keys
 
 local Players = game:GetService("Players")
 local ReplicatedStorage = game:GetService("ReplicatedStorage")
@@ -31,6 +31,8 @@ local WorldVisualsController = {}
 local carriedPropsByPlayer: { [Player]: { archetypeId: string, model: Model } } = {}
 local benchShowcases: { [number]: BenchShowcase } = {}
 local modalOpenRequestCb: ((string) -> ())? = nil
+local boundTools: { [Tool]: { RBXScriptConnection } } = {}
+local lastToolUseAt: { [string]: number } = {}
 
 local function removeCarriedProp(player: Player): ()
 	local rec = carriedPropsByPlayer[player]
@@ -123,6 +125,63 @@ local function watchPlayerProps(player: Player): ()
 			refreshCarriedPropForPlayer(player)
 		end)
 	end
+end
+
+local function triggerConsumableTool(tool: Tool): ()
+	local cid = tool:GetAttribute("ConsumableId")
+	if cid ~= "SmokeBomb" and cid ~= "DistractionAlarm" then
+		return
+	end
+	local now = os.clock()
+	if now - (lastToolUseAt[cid] or 0) < 0.25 then
+		return
+	end
+	lastToolUseAt[cid] = now
+	ClientState.UseGadget(cid :: ClientState.ConsumableId)
+end
+
+local function bindConsumableTool(tool: Tool): ()
+	if boundTools[tool] then
+		return
+	end
+	local cid = tool:GetAttribute("ConsumableId")
+	if cid ~= "SmokeBomb" and cid ~= "DistractionAlarm" then
+		return
+	end
+
+	local conns: { RBXScriptConnection } = {}
+	table.insert(conns, tool.Equipped:Connect(function()
+		triggerConsumableTool(tool)
+	end))
+	table.insert(conns, tool.Activated:Connect(function()
+		triggerConsumableTool(tool)
+	end))
+	table.insert(conns, tool.Destroying:Connect(function()
+		local stored = boundTools[tool]
+		if stored then
+			for _, c in ipairs(stored) do
+				c:Disconnect()
+			end
+			boundTools[tool] = nil
+		end
+	end))
+	boundTools[tool] = conns
+end
+
+local function watchToolContainer(container: Instance?): ()
+	if not container then
+		return
+	end
+	for _, child in ipairs(container:GetChildren()) do
+		if child:IsA("Tool") then
+			bindConsumableTool(child)
+		end
+	end
+	container.ChildAdded:Connect(function(child: Instance)
+		if child:IsA("Tool") then
+			bindConsumableTool(child)
+		end
+	end)
 end
 
 local function isLocalPlayerInHideout(): boolean
@@ -327,18 +386,6 @@ local function updateWorkbenchVisuals(dt: number): ()
 	end
 end
 
-local function updateCrouchCamera(dt: number): ()
-	local char = Players.LocalPlayer.Character
-	local humanoid = if char then char:FindFirstChildOfClass("Humanoid") else nil
-	if not humanoid then
-		return
-	end
-	local targetOffsetY = if ClientState.IsCrouching() then -1.25 else 0
-	local current = humanoid.CameraOffset
-	local nextY = current.Y + (targetOffsetY - current.Y) * math.min(1, dt * 12)
-	humanoid.CameraOffset = Vector3.new(0, nextY, 0)
-end
-
 function WorldVisualsController.SetModalCallback(cb: (string) -> ()): ()
 	modalOpenRequestCb = cb
 end
@@ -350,17 +397,26 @@ function WorldVisualsController.Start(): ()
 	Players.PlayerAdded:Connect(watchPlayerProps)
 	Players.PlayerRemoving:Connect(removeCarriedProp)
 
+	local lp = Players.LocalPlayer
+	watchToolContainer(lp:FindFirstChildOfClass("Backpack"))
+	watchToolContainer(lp.Character)
+	lp.ChildAdded:Connect(function(child: Instance)
+		if child:IsA("Backpack") then
+			watchToolContainer(child)
+		end
+	end)
+	lp.CharacterAdded:Connect(function(char: Model)
+		watchToolContainer(char)
+		task.defer(function()
+			watchToolContainer(lp:FindFirstChildOfClass("Backpack"))
+		end)
+	end)
+
 	UserInputService.InputBegan:Connect(function(input: InputObject, gameProcessed: boolean)
 		if gameProcessed then
 			return
 		end
-		if input.KeyCode == Enum.KeyCode.C or input.KeyCode == Enum.KeyCode.LeftControl then
-			ClientState.ToggleCrouch()
-		elseif input.KeyCode == Enum.KeyCode.G then
-			ClientState.UseGadget()
-		elseif input.KeyCode == Enum.KeyCode.H then
-			ClientState.UseGadget("DistractionAlarm")
-		elseif input.KeyCode == Enum.KeyCode.B then
+		if input.KeyCode == Enum.KeyCode.B then
 			if modalOpenRequestCb then
 				modalOpenRequestCb("Backpack")
 			end
@@ -368,16 +424,11 @@ function WorldVisualsController.Start(): ()
 			if modalOpenRequestCb then
 				modalOpenRequestCb("Shop")
 			end
-		elseif input.KeyCode == Enum.KeyCode.T then
-			if modalOpenRequestCb then
-				modalOpenRequestCb("Terminals")
-			end
 		end
 	end)
 
 	RunService.RenderStepped:Connect(function(dt: number)
 		updateWorkbenchVisuals(dt)
-		updateCrouchCamera(dt)
 	end)
 end
 

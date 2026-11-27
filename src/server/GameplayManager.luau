@@ -15,6 +15,7 @@ local ServerFolder = script.Parent
 local DataManager = require(ServerFolder:WaitForChild("DataManager"))
 local WorldBuilder = require(ServerFolder:WaitForChild("WorldBuilder"))
 local StealthManager = require(ServerFolder:WaitForChild("StealthManager"))
+local ToolManager = require(ServerFolder:WaitForChild("ToolManager"))
 
 local GameplayManager = {}
 
@@ -230,6 +231,9 @@ local function connectRemotes(): ()
 			return
 		end
 		local ok, msg = DataManager.BuyConsumable(player, itemId)
+		if ok then
+			ToolManager.SyncTools(player)
+		end
 		syncPlayer(player, msg, if ok then "success" else "warning")
 	end)
 
@@ -247,13 +251,6 @@ local function connectRemotes(): ()
 		end
 		StealthManager.UseDistraction(player, itemId)
 	end)
-
-	remotes.ToggleCrouch.OnServerEvent:Connect(function(player: Player, wantsCrouch: unknown)
-		if typeof(wantsCrouch) ~= "boolean" then
-			return
-		end
-		StealthManager.SetCrouch(player, wantsCrouch)
-	end)
 end
 
 function GameplayManager.Start(): ()
@@ -268,6 +265,7 @@ function GameplayManager.Start(): ()
 		DataManager.LoadProfile(player)
 		StealthManager.OnPlayerAdded(player)
 		task.defer(function()
+			ToolManager.SyncTools(player)
 			syncPlayer(player, "Steal bags & escape south!", "info")
 		end)
 	end

@@ -14,7 +14,6 @@ export type RemoteSet = {
 	UnlockTerminal: RemoteEvent,
 	UseDistraction: RemoteEvent,
 	SyncPlayerState: RemoteEvent,
-	ToggleCrouch: RemoteEvent,
 }
 
 local FOLDER_NAME = "GameRemotes"
@@ -29,7 +28,6 @@ local REQUIRED_EVENT_NAMES = {
 	"UnlockTerminal",
 	"UseDistraction",
 	"SyncPlayerState",
-	"ToggleCrouch",
 }
 
 local Remotes = {}
@@ -46,7 +44,6 @@ local function buildRemoteSet(folder: Folder): RemoteSet
 		UnlockTerminal = folder:WaitForChild("UnlockTerminal") :: RemoteEvent,
 		UseDistraction = folder:WaitForChild("UseDistraction") :: RemoteEvent,
 		SyncPlayerState = folder:WaitForChild("SyncPlayerState") :: RemoteEvent,
-		ToggleCrouch = folder:WaitForChild("ToggleCrouch") :: RemoteEvent,
 	}
 end
 

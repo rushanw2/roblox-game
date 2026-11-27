@@ -15,6 +15,7 @@ local Remotes = require(Shared:WaitForChild("Remotes"))
 local ServerFolder = script.Parent
 local DataManager = require(ServerFolder:WaitForChild("DataManager"))
 local WorldBuilder = require(ServerFolder:WaitForChild("WorldBuilder"))
+local ToolManager = require(ServerFolder:WaitForChild("ToolManager"))
 
 export type TerminalId = GameConfig.TerminalId
 export type AlertState = "Calm" | "Suspicious" | "Alerted" | "Distracted" | "Blinded"
@@ -88,7 +89,6 @@ type ActiveEffect = {
 
 type PlayerStealthState = {
 	suspicion: number,
-	isCrouching: boolean,
 	bustedUntil: number,
 	lastStealAttempt: number,
 	lastGateWarnAt: number,
@@ -255,7 +255,6 @@ local function getOrCreatePlayerState(player: Player): PlayerStealthState
 	end
 	local state: PlayerStealthState = {
 		suspicion = 0,
-		isCrouching = false,
 		bustedUntil = 0,
 		lastStealAttempt = 0,
 		lastGateWarnAt = 0,
@@ -300,7 +299,7 @@ local function applyPlayerMovementSpeed(player: Player): ()
 	local sneakerLevel = if profile then profile.UpgradeLevels.Sneakers else 1
 	local sneakerDef = GameConfig.GetSneakerUpgrade(sneakerLevel)
 	humanoid.JumpPower = 50
-	humanoid.WalkSpeed = if state.isCrouching then sneakerDef.crouchSpeed else sneakerDef.walkSpeed
+	humanoid.WalkSpeed = sneakerDef.walkSpeed
 end
 
 local function spawnBustSecurityAnimation(targetPos: Vector3): ()
@@ -332,9 +331,7 @@ function StealthManager.BustPlayer(player: Player, reason: string, terminalId: T
 
 	state.bustedUntil = now + GameConfig.BUST_STUN_SECONDS
 	state.suspicion = 0
-	state.isCrouching = false
 	player:SetAttribute("Suspicion", 0)
-	player:SetAttribute("IsCrouching", false)
 	player:SetAttribute("StealthStatus", "Busted")
 
 	local confiscated = DataManager.ClearCarriedLuggage(player)
@@ -429,12 +426,11 @@ function StealthManager.AttemptSteal(player: Player, bagId: string): ()
 
 	-- Authoritative stealth cone verification against owner & security guards
 	local coat = GameConfig.GetStealthCoatUpgrade(profile.UpgradeLevels.StealthCoat)
-	local crouchMult = if state.isCrouching then GameConfig.CROUCH_DETECTION_RANGE_MULT else 1.0
 	local termDef = GameConfig.TERMINALS[bagRec.terminalId]
 
 	local owner = passengersById[bagRec.ownerId]
 	if owner and now >= owner.distractedUntil and now >= owner.blindedUntil then
-		local effRange = owner.visionRange * coat.rangeMultiplier * crouchMult
+		local effRange = owner.visionRange * coat.rangeMultiplier
 		local effAngle = owner.visionAngleDeg * coat.angleMultiplier
 		local seesPlayer = isPointInVisionCone(owner.currentPos, owner.currentYaw, effRange, effAngle, hrp.Position, now)
 		local seesBag = isPointInVisionCone(owner.currentPos, owner.currentYaw, owner.visionRange, owner.visionAngleDeg, bagRec.position, now)
@@ -447,7 +443,7 @@ function StealthManager.AttemptSteal(player: Player, bagId: string): ()
 
 	for _, guard in pairs(guardsById) do
 		if guard.terminalId == bagRec.terminalId and now >= guard.distractedUntil and now >= guard.blindedUntil then
-			local gRange = guard.visionRange * termDef.detectionMultiplier * coat.rangeMultiplier * crouchMult
+			local gRange = guard.visionRange * termDef.detectionMultiplier * coat.rangeMultiplier
 			local gAngle = guard.visionAngleDeg * coat.angleMultiplier
 			if isPointInVisionCone(guard.currentPos, guard.currentYaw, gRange, gAngle, hrp.Position, now) then
 				setNpcAlertVisual(guard.model, "Alerted")
@@ -643,16 +639,6 @@ local function spawnSecurityGuards(): ()
 	end
 end
 
-function StealthManager.SetCrouch(player: Player, wantsCrouch: boolean): ()
-	local state = getOrCreatePlayerState(player)
-	if os.clock() < state.bustedUntil then
-		return
-	end
-	state.isCrouching = wantsCrouch
-	player:SetAttribute("IsCrouching", wantsCrouch)
-	applyPlayerMovementSpeed(player)
-end
-
 function StealthManager.UseDistraction(player: Player, itemId: string): ()
 	local profile = DataManager.GetProfile(player)
 	if not profile then
@@ -661,24 +647,36 @@ function StealthManager.UseDistraction(player: Player, itemId: string): ()
 	local state = getOrCreatePlayerState(player)
 	local now = os.clock()
 	if now < state.bustedUntil then
+		task.delay(0.05, function()
+			if player.Parent then
+				ToolManager.UnequipConsumables(player)
+			end
+		end)
 		return
 	end
 
 	local cid: GameConfig.ConsumableId? = if itemId == "SmokeBomb" or itemId == "DistractionAlarm" then itemId :: GameConfig.ConsumableId else nil
 	if not cid then
-		sendToast(player, "Invalid gadget!", "warning")
+		sendToast(player, "Invalid item!", "warning")
 		return
 	end
 
 	local def = GameConfig.CONSUMABLES[cid]
 	local readyAt = state.gadgetCooldowns[cid] or 0
 	if now < readyAt then
+		task.delay(0.05, function()
+			if player.Parent then
+				ToolManager.UnequipConsumables(player)
+			end
+		end)
 		sendToast(player, string.format("Cooldown: %.1fs left!", readyAt - now), "warning")
 		return
 	end
 
 	local ok, resultOrErr = DataManager.ConsumeGadget(player, cid)
 	if not ok then
+		ToolManager.UnequipConsumables(player)
+		ToolManager.SyncTools(player)
 		sendToast(player, resultOrErr, "warning")
 		return
 	end
@@ -793,21 +791,27 @@ function StealthManager.UseDistraction(player: Player, itemId: string): ()
 		model = effModel,
 	})
 
+	ToolManager.UnequipConsumables(player)
+	ToolManager.SyncTools(player)
+	task.delay(0.05, function()
+		if player.Parent then
+			ToolManager.UnequipConsumables(player)
+			ToolManager.SyncTools(player)
+		end
+	end)
+
 	sendToast(player, string.format("Used %s!", def.name), "info")
 end
 
 function StealthManager.OnPlayerAdded(player: Player): ()
 	local state = getOrCreatePlayerState(player)
 	player:SetAttribute("Suspicion", 0)
-	player:SetAttribute("IsCrouching", false)
 	player:SetAttribute("StealthStatus", "Safe")
 	player:SetAttribute("CarriedArchetype", "")
 	player:SetAttribute("CarriedTier", "")
 
 	local function bindCharacter(character: Model): ()
-		state.isCrouching = false
 		state.suspicion = 0
-		player:SetAttribute("IsCrouching", false)
 		player:SetAttribute("Suspicion", 0)
 		local hrp = character:WaitForChild("HumanoidRootPart", 5) :: BasePart?
 		if hrp then
@@ -815,6 +819,7 @@ function StealthManager.OnPlayerAdded(player: Player): ()
 		end
 		task.defer(function()
 			applyPlayerMovementSpeed(player)
+			ToolManager.SyncTools(player)
 		end)
 	end
 
@@ -1140,8 +1145,6 @@ local function evaluatePlayersStealth(dt: number, now: number): ()
 
 		-- 3. Vision cone detection
 		local coat = GameConfig.GetStealthCoatUpgrade(profile.UpgradeLevels.StealthCoat)
-		local crouchRangeMult = if state.isCrouching then GameConfig.CROUCH_DETECTION_RANGE_MULT else 1.0
-		local crouchSuspMult = if state.isCrouching then GameConfig.CROUCH_SUSPICION_MULT else 1.0
 		local carried = profile.CarriedLuggage
 
 		local maxThreatRate = 0
@@ -1156,7 +1159,7 @@ local function evaluatePlayersStealth(dt: number, now: number): ()
 				continue
 			end
 
-			local effRange = npc.visionRange * coat.rangeMultiplier * crouchRangeMult
+			local effRange = npc.visionRange * coat.rangeMultiplier
 			local effAngle = npc.visionAngleDeg * coat.angleMultiplier
 			if isPointInVisionCone(npc.currentPos, npc.currentYaw, effRange, effAngle, pos, now) then
 				local bagRec = bagsById[npc.bagId]
@@ -1174,7 +1177,7 @@ local function evaluatePlayersStealth(dt: number, now: number): ()
 					local distToBag = (Vector3.new(pos.X, 0, pos.Z) - Vector3.new(bagRec.position.X, 0, bagRec.position.Z)).Magnitude
 					if distToBag <= GameConfig.OWNER_WATCH_BAG_RADIUS then
 						local termDef = GameConfig.TERMINALS[npc.terminalId]
-						local rate = npc.archetype.suspicionRate * termDef.awarenessSpeedMultiplier * coat.suspicionMultiplier * crouchSuspMult
+						local rate = npc.archetype.suspicionRate * termDef.awarenessSpeedMultiplier * coat.suspicionMultiplier
 						if rate > maxThreatRate then
 							maxThreatRate = rate
 						end
@@ -1190,10 +1193,10 @@ local function evaluatePlayersStealth(dt: number, now: number): ()
 					continue
 				end
 				local termDef = GameConfig.TERMINALS[guard.terminalId or "Domestic"]
-				local gRange = guard.visionRange * termDef.detectionMultiplier * coat.rangeMultiplier * crouchRangeMult
+				local gRange = guard.visionRange * termDef.detectionMultiplier * coat.rangeMultiplier
 				local gAngle = guard.visionAngleDeg * coat.angleMultiplier
 				if isPointInVisionCone(guard.currentPos, guard.currentYaw, gRange, gAngle, pos, now) then
-					local rate = 115 * termDef.awarenessSpeedMultiplier * coat.suspicionMultiplier * crouchSuspMult
+					local rate = 115 * termDef.awarenessSpeedMultiplier * coat.suspicionMultiplier
 					if rate > maxThreatRate then
 						maxThreatRate = rate
 						spottedByHotSource = "Security spotted you!"

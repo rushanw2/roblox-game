@@ -86,7 +86,6 @@ export type SneakerUpgradeDef = {
 	name: string,
 	cost: number,
 	walkSpeed: number,
-	crouchSpeed: number,
 	description: string,
 }
 
@@ -103,13 +102,12 @@ export type StealthCoatUpgradeDef = {
 export type ConsumableDef = {
 	id: ConsumableId,
 	name: string,
+	rarity: RarityTier,
 	cost: number,
-	maxStack: number,
 	cooldown: number,
 	radius: number,
 	duration: number,
 	color: Color3,
-	hotkeyLabel: string,
 	description: string,
 }
 
@@ -172,8 +170,6 @@ GameConfig.SPAWN_POSITION = Vector3.new(0, 3.5, 96)
 GameConfig.BUST_STUN_SECONDS = 1.6
 GameConfig.STEAL_RANGE = 11.5
 GameConfig.WORKBENCH_INTERACT_RANGE = 12
-GameConfig.CROUCH_DETECTION_RANGE_MULT = 0.65
-GameConfig.CROUCH_SUSPICION_MULT = 0.65
 GameConfig.OWNER_WATCH_BAG_RADIUS = 16
 
 local TERMINAL_ORDER: { TerminalId } = {
@@ -740,10 +736,10 @@ local WORKBENCH_UPGRADES: { WorkbenchUpgradeDef } = {
 GameConfig.WORKBENCH_UPGRADES = WORKBENCH_UPGRADES
 
 local SNEAKER_UPGRADES: { SneakerUpgradeDef } = {
-	{ level = 1, name = "Canvas Slip-Ons", cost = 0, walkSpeed = 16, crouchSpeed = 10.5, description = "Standard terminal footwear." },
-	{ level = 2, name = "Rubber-Sole Runners", cost = 300, walkSpeed = 19, crouchSpeed = 13, description = "+19% sprint & sneak agility." },
-	{ level = 3, name = "Silent Aero Trainers", cost = 1400, walkSpeed = 22.5, crouchSpeed = 15.5, description = "Whisper-quiet soles for quick getaways." },
-	{ level = 4, name = "Phantom Carbon Kicks", cost = 5000, walkSpeed = 26, crouchSpeed = 18.5, description = "Max getaway & crouch speed." },
+	{ level = 1, name = "Canvas Slip-Ons", cost = 0, walkSpeed = 16, description = "Standard terminal footwear." },
+	{ level = 2, name = "Rubber-Sole Runners", cost = 300, walkSpeed = 19, description = "+19% sprint agility." },
+	{ level = 3, name = "Silent Aero Trainers", cost = 1400, walkSpeed = 22.5, description = "Whisper-quiet soles for quick getaways." },
+	{ level = 4, name = "Phantom Carbon Kicks", cost = 5000, walkSpeed = 26, description = "Max getaway sprint speed." },
 }
 GameConfig.SNEAKER_UPGRADES = SNEAKER_UPGRADES
 
@@ -759,25 +755,23 @@ local CONSUMABLES: { [ConsumableId]: ConsumableDef } = {
 	SmokeBomb = {
 		id = "SmokeBomb",
 		name = "Smoke Bomb",
+		rarity = "Common",
 		cost = 150,
-		maxStack = 5,
 		cooldown = 10,
 		radius = 22,
 		duration = 6.5,
 		color = Color3.fromRGB(165, 190, 215),
-		hotkeyLabel = "G",
 		description = "Drops a dense smoke cloud blocking NPC line-of-sight for 6.5s.",
 	},
 	DistractionAlarm = {
 		id = "DistractionAlarm",
 		name = "Distraction Alarm",
+		rarity = "Common",
 		cost = 220,
-		maxStack = 5,
 		cooldown = 12,
 		radius = 38,
 		duration = 7.5,
 		color = Color3.fromRGB(255, 168, 48),
-		hotkeyLabel = "H",
 		description = "Chirping decoy pulls nearby passengers to turn away for 7.5s.",
 	},
 }
